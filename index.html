@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Academic Report Generator | Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Kadwa:wght@400;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero" aria-label="Welcome section">
+        <div class="hero__icon" aria-hidden="true">
+          <img class="hero__logo" src="logo.png" alt="" />
+        </div>
+        <h1 class="hero__title">Welcome to<br />Academic Report Generator</h1>
+      </section>
+
+      <section class="card-wrap" aria-label="Login section">
+        <article class="card">
+          <h2 class="card__title">Login</h2>
+          <form class="form" id="loginForm" novalidate>
+            <label class="field" for="username">
+              <span class="field__label">Username</span>
+              <input id="username" name="username" type="email" placeholder="you@college.edu" required />
+            </label>
+
+            <label class="field" for="password">
+              <span class="field__label">Password</span>
+              <div class="password-field">
+                <input id="password" name="password" type="password" placeholder="Enter password" required minlength="6" />
+                <button type="button" class="toggle" id="togglePassword" aria-label="Show password">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M12 5C6.5 5 2.2 9 1 12c1.2 3 5.5 7 11 7s9.8-4 11-7c-1.2-3-5.5-7-11-7Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z" />
+                  </svg>
+                </button>
+              </div>
+            </label>
+
+            <a href="#" class="link link--muted">Forget Password?</a>
+            <button type="submit" class="btn">Login</button>
+          </form>
+
+          <p class="meta">Not a Member ? <a class="link" href="register.html">Signup</a></p>
+        </article>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>

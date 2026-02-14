@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Academic Report Generator | Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Kadwa:wght@400;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="dashboard.css" />
+  </head>
+  <body>
+    <main class="dashboard">
+      <header class="topbar">
+        <div class="brand">
+          <img src="logo.png" alt="" class="brand__logo" />
+          <div>
+            <h1>Academic Report Generator</h1>
+            <p>Manage records and analyze performance quickly</p>
+          </div>
+        </div>
+        <div class="topbar__actions">
+          <button id="toggleCreateBtn" type="button" class="btn">+ Create Record</button>
+          <a class="topbar__link" href="index.html">Back to Login</a>
+        </div>
+      </header>
+
+      <section class="panel is-hidden" id="createPanel">
+        <h2>Create Record</h2>
+        <form id="recordForm" class="record-form" novalidate>
+          <label>
+            <span>Student Name</span>
+            <input type="text" id="studentName" name="studentName" placeholder="Enter student name" required />
+          </label>
+          <label>
+            <span>Class</span>
+            <select id="className" name="className" required>
+              <option value="">Select class</option>
+              <option>Class 6</option>
+              <option>Class 7</option>
+              <option>Class 8</option>
+              <option>Class 9</option>
+              <option>Class 10</option>
+              <option>Class 11</option>
+              <option>Class 12</option>
+            </select>
+          </label>
+          <label>
+            <span>Subject</span>
+            <select id="subjectName" name="subjectName" required>
+              <option value="">Select subject</option>
+              <option>Mathematics</option>
+              <option>Science</option>
+              <option>English</option>
+              <option>Social Studies</option>
+              <option>Computer Science</option>
+            </select>
+          </label>
+          <label>
+            <span>Term</span>
+            <select id="termName" name="termName" required>
+              <option value="">Select term</option>
+              <option>First Term</option>
+              <option>Second Term</option>
+              <option>Third Term</option>
+            </select>
+          </label>
+          <label>
+            <span>Marks</span>
+            <input type="number" id="marks" name="marks" min="0" max="100" placeholder="0-100" required />
+          </label>
+          <button type="submit" class="btn btn--small">Add Record</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="panel__head">
+          <h2>Your Reports</h2>
+          <div class="head-controls">
+            <label>
+              <span>View</span>
+              <select id="viewMode">
+                <option value="classRecords">Class-wise Records</option>
+                <option value="subjectRecords">Subject-wise Records</option>
+                <option value="classAverage">Average by Class</option>
+                <option value="subjectPerClass">Subject Average per Class</option>
+                <option value="specificAverage">Particular Class + Subject Average</option>
+                <option value="studentReport">Student Report</option>
+                <option value="termGraph">Term Comparison Graph</option>
+              </select>
+            </label>
+            <label>
+              <span>Class</span>
+              <select id="classFilter">
+                <option value="all">All Classes</option>
+              </select>
+            </label>
+            <label>
+              <span>Subject</span>
+              <select id="subjectFilter">
+                <option value="all">All Subjects</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="view-body">
+          <section class="view-pane is-active" data-view="classRecords">
+            <div id="classWiseView" class="records"></div>
+          </section>
+
+          <section class="view-pane" data-view="subjectRecords">
+            <div id="subjectWiseView" class="records"></div>
+          </section>
+
+          <section class="view-pane" data-view="classAverage">
+            <div id="classAverageView" class="records"></div>
+          </section>
+
+          <section class="view-pane" data-view="subjectPerClass">
+            <div id="subjectPerClassAverageView" class="records"></div>
+          </section>
+
+          <section class="view-pane" data-view="specificAverage">
+            <div class="specific-controls">
+              <label>
+                <span>Class</span>
+                <select id="specificClassFilter">
+                  <option value="">Select class</option>
+                </select>
+              </label>
+              <label>
+                <span>Subject</span>
+                <select id="specificSubjectFilter">
+                  <option value="">Select subject</option>
+                </select>
+              </label>
+            </div>
+            <div id="specificAverageView" class="records"></div>
+          </section>
+
+          <section class="view-pane" data-view="studentReport">
+            <div class="specific-controls">
+              <label>
+                <span>Student</span>
+                <select id="studentFilter">
+                  <option value="">Select student</option>
+                </select>
+              </label>
+              <label>
+                <span>Term</span>
+                <select id="studentTermFilter">
+                  <option value="">Select term</option>
+                </select>
+              </label>
+              <button id="downloadStudentReportBtn" type="button" class="btn btn--small">Download Marksheet</button>
+            </div>
+            <div class="specific-controls specific-controls--meta">
+              <label>
+                <span>Academic Year</span>
+                <input id="academicYearInput" type="text" placeholder="2026-2027" />
+              </label>
+              <button id="downloadStudentReportPdfBtn" type="button" class="btn btn--small">Download PDF</button>
+            </div>
+            <div id="studentReportView" class="records"></div>
+          </section>
+
+          <section class="view-pane" data-view="termGraph">
+            <div class="specific-controls">
+              <label>
+                <span>Class</span>
+                <select id="chartClassFilter">
+                  <option value="all">All Classes</option>
+                </select>
+              </label>
+              <label>
+                <span>Subject</span>
+                <select id="chartSubjectFilter">
+                  <option value="all">All Subjects</option>
+                </select>
+              </label>
+            </div>
+            <canvas id="termComparisonChart" width="900" height="320"></canvas>
+            <p id="chartSummary" class="empty"></p>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script src="dashboard.js"></script>
+  </body>
+</html>
