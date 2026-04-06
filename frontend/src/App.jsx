@@ -72,6 +72,24 @@ function buildRegisterDirectory(records) {
   return directory;
 }
 
+function mergeStudentRosterIntoDirectory(directory, students) {
+  const nextDirectory = new Map(directory);
+  students.forEach((student) => {
+    const registerNumber = String(student?.registerNumber || "").trim();
+    if (!registerNumber) return;
+
+    const existing = nextDirectory.get(registerNumber) || {};
+    nextDirectory.set(registerNumber, {
+      name: existing.name || String(student?.studentName || "").trim(),
+      className: existing.className || String(student?.className || "").trim(),
+      section: existing.section || String(student?.section || "").trim(),
+      classTeacherName: existing.classTeacherName || "",
+      classTeacherSubject: existing.classTeacherSubject || "",
+    });
+  });
+  return nextDirectory;
+}
+
 function formatRegisterOption(registerNumber, directory) {
   const entry = directory.get(registerNumber);
   if (entry?.name) {
@@ -91,6 +109,23 @@ function nameWithoutInitials(name) {
     return rest;
   }
   return cleaned;
+}
+
+function normalizeClassToken(value) {
+  return String(value || "").replace(/\s+/g, "").trim().toUpperCase();
+}
+
+function matchesClassAssignment(item, classTeacherFor) {
+  const assignedClass = normalizeClassToken(classTeacherFor);
+  if (!assignedClass) return false;
+
+  const itemClass = normalizeClassToken(item?.className);
+  const itemSection = normalizeClassToken(item?.section);
+  if (!itemClass) return false;
+
+  if (itemClass === assignedClass) return true;
+  if (itemSection && `${itemClass}${itemSection}` === assignedClass) return true;
+  return false;
 }
 
 function average(rows) {
@@ -392,6 +427,11 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
     [records]
   );
 
+  const normalizedClassTeacherRecords = useMemo(
+    () => classTeacherRecords.map((record) => ({ ...record, term: normalizeTerm(record.term) })),
+    [classTeacherRecords]
+  );
+
   const reportRecords = useMemo(() => {
     if (isBiologyStaff) {
       return normalizedRecords
@@ -399,9 +439,7 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
         .map((record) => ({ ...record, term: normalizeTerm(record.term) }));
     }
     if (isStaff && classTeacherFor) {
-      return normalizedRecords
-        .filter((record) => record.className === classTeacherFor)
-        .map((record) => ({ ...record, term: normalizeTerm(record.term) }));
+      return normalizedClassTeacherRecords;
     }
     if (isStaff && staffSubject) {
       return normalizedRecords
@@ -409,18 +447,26 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
         .map((record) => ({ ...record, term: normalizeTerm(record.term) }));
     }
     return normalizedRecords;
-  }, [isBiologyStaff, isStaff, staffSubject, classTeacherFor, normalizedRecords]);
+  }, [isBiologyStaff, isStaff, staffSubject, classTeacherFor, normalizedRecords, normalizedClassTeacherRecords]);
 
   const studentSectionRecords = useMemo(() => {
     if (isStaff && classTeacherFor) {
-      return classTeacherRecords.map((record) => ({ ...record, term: normalizeTerm(record.term) }));
+      return normalizedClassTeacherRecords;
     }
     return reportRecords;
-  }, [isStaff, classTeacherFor, classTeacherRecords, reportRecords]);
+  }, [isStaff, classTeacherFor, normalizedClassTeacherRecords, reportRecords]);
+
+  const accessibleStudents = useMemo(() => {
+    if (!students.length) return [];
+    if (isStaff && classTeacherFor) {
+      return students.filter((student) => matchesClassAssignment(student, classTeacherFor));
+    }
+    return students;
+  }, [students, isStaff, classTeacherFor]);
 
   const studentDirectorySource = useMemo(
-    () => (students.length ? students : studentSectionRecords),
-    [students, studentSectionRecords]
+    () => (accessibleStudents.length ? accessibleStudents : studentSectionRecords),
+    [accessibleStudents, studentSectionRecords]
   );
   const studentNameOptions = useMemo(
     () => [...new Set(studentDirectorySource.map((r) => r.studentName).filter(Boolean))].sort(),
@@ -472,12 +518,15 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
     const className = recordForm.className || (filters.className !== "all" ? filters.className : "");
     const base = reportRecords;
     const filtered = className ? base.filter((r) => r.className === className) : base;
-    const directory = buildRegisterDirectory(filtered);
+    const roster = className
+      ? accessibleStudents.filter((student) => String(student?.className || "").trim() === className)
+      : accessibleStudents;
+    const directory = mergeStudentRosterIntoDirectory(buildRegisterDirectory(filtered), roster);
     return {
       registerOptionsByClass: Array.from(directory.keys()).sort(),
       registerDirectoryByClass: directory,
     };
-  }, [reportRecords, recordForm.className, filters.className]);
+  }, [reportRecords, accessibleStudents, recordForm.className, filters.className]);
 
   const { registerOptionsForFilter, registerDirectoryForFilter } = useMemo(() => {
     const className = filters.className !== "all" ? filters.className : "";
@@ -489,10 +538,14 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
     };
   }, [reportRecords, filters.className]);
 
-  const totalStudents = useMemo(
-    () => new Set(reportRecords.map((r) => r.registerNumber).filter(Boolean)).size,
-    [reportRecords]
-  );
+  const totalStudents = useMemo(() => {
+    if (students.length) {
+      return students.length;
+    }
+
+    const fallbackRecords = normalizedRecords;
+    return new Set(fallbackRecords.map((r) => r.registerNumber).filter(Boolean)).size;
+  }, [students, normalizedRecords]);
 
   const totalStaff = staffList.length;
   const totalSubjects = SUBJECT_OPTIONS.length;
@@ -519,14 +572,22 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
 
   const classPerformance = useMemo(() => {
     const groups = {};
+    const groupKey = isStaff && classTeacherFor ? "subject" : "className";
     reportRecords.forEach((r) => {
-      if (!groups[r.className]) groups[r.className] = [];
-      groups[r.className].push(r);
+      const key = String(r[groupKey] || "").trim();
+      if (!key) return;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(r);
     });
-    const labels = CLASS_OPTIONS.slice();
+    const labels = isStaff && classTeacherFor
+      ? [
+          ...SUBJECT_OPTIONS.filter((label) => groups[label]?.length),
+          ...Object.keys(groups).filter((label) => !SUBJECT_OPTIONS.includes(label)).sort(),
+        ]
+      : CLASS_OPTIONS.filter((label) => groups[label]?.length);
     const values = labels.map((label) => average(groups[label] || []) || 0);
     return { labels, values };
-  }, [reportRecords]);
+  }, [reportRecords, isStaff, classTeacherFor]);
 
   const subjectAverage = useMemo(() => {
     const base =
@@ -885,8 +946,8 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
       ...prev,
       registerNumber,
       studentName: info?.name || prev.studentName,
-      className: prev.className || info?.className || "",
-      section: prev.section || info?.section || "",
+      className: info?.className || prev.className,
+      section: info?.section || prev.section,
       classTeacherName: prev.classTeacherName || info?.classTeacherName || "",
       classTeacherSubject: prev.classTeacherSubject || info?.classTeacherSubject || "",
     }));
@@ -1411,19 +1472,21 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
                 <p>Here’s a quick snapshot of academic performance and records.</p>
               </div>
 
-              <div className="stat-grid">
+              <div className={`stat-grid ${isAdmin ? "" : "stat-grid--three"}`}>
                 <StatCard
                   title="Total Students"
                   value={totalStudents}
                   tone="stat-card--blue"
                   icon={<UserGroupIcon />}
                 />
-                <StatCard
-                  title="Total Staff"
-                  value={totalStaff}
-                  tone="stat-card--orange"
-                  icon={<StaffIcon />}
-                />
+                {isAdmin ? (
+                  <StatCard
+                    title="Total Staff"
+                    value={totalStaff}
+                    tone="stat-card--orange"
+                    icon={<StaffIcon />}
+                  />
+                ) : null}
                 <StatCard
                   title="Classes Available"
                   value="6 - 12"
@@ -1446,7 +1509,11 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
                 </div>
               ) : null}
 
-              <ChartCard title="Class Performance" canvasRef={chartClassRef} bodyClassName="chart-compact" />
+              <ChartCard
+                title={isStaff && classTeacherFor ? `${classTeacherFor} Subject Performance` : "Class Performance"}
+                canvasRef={chartClassRef}
+                bodyClassName="chart-compact"
+              />
             </>
           ) : null}
 

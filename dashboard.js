@@ -1,10 +1,11 @@
-const API_BASE_URL = "http://localhost:5000/api";
+const API_BASE_URL = window.APP_CONFIG?.apiBaseUrl || "http://localhost:5000/api";
 const AUTH_TOKEN_KEY = "academic_auth_token";
 
 const recordForm = document.getElementById("recordForm");
 const createPanel = document.getElementById("createPanel");
 const toggleCreateBtn = document.getElementById("toggleCreateBtn");
 const viewMode = document.getElementById("viewMode");
+const studentRoster = document.getElementById("studentRoster");
 
 const classFilter = document.getElementById("classFilter");
 const sectionFilter = document.getElementById("sectionFilter");
@@ -23,6 +24,7 @@ const DEFAULT_TERMS = ["Term 1", "Term 2", "Term 3"];
 const BIOLOGY_SUBJECT = "Biology";
 let editingRecordId = "";
 let recordsCache = [];
+let studentsCache = [];
 let lastFetchFailed = false;
 let currentUser = null;
 
@@ -130,6 +132,27 @@ async function fetchRecords() {
   }
 }
 
+async function fetchStudents() {
+  const token = getAuthToken();
+  if (!token) return [];
+
+  try {
+    const payload = await apiRequest("/students", { method: "GET" });
+    const students = Array.isArray(payload?.data) ? payload.data : [];
+    return students
+      .map((student) => ({
+        id: String(student._id || student.id || "").trim(),
+        studentName: String(student.studentName || "").trim(),
+        registerNumber: String(student.registerNumber || "").trim(),
+        className: String(student.className || "").trim(),
+        section: String(student.section || "").trim(),
+      }))
+      .filter((student) => student.studentName && student.registerNumber && student.className && student.section);
+  } catch {
+    return [];
+  }
+}
+
 function uniqueValues(records, key) {
   return [...new Set(records.map((r) => r[key]).filter(Boolean))].sort();
 }
@@ -158,6 +181,70 @@ function fillRequiredFilter(select, values, placeholder) {
     select.appendChild(opt);
   });
   select.value = values.includes(current) ? current : "";
+}
+
+function fillStudentRoster(select, students) {
+  if (!select) return;
+  const current = select.value || "";
+  select.innerHTML = '<option value="">Choose a student</option>';
+  students.forEach((student) => {
+    const opt = document.createElement("option");
+    opt.value = student.registerNumber;
+    opt.textContent = `${student.studentName} (${student.registerNumber})`;
+    select.appendChild(opt);
+  });
+  select.value = students.some((student) => student.registerNumber === current) ? current : "";
+}
+
+function getVisibleStudents(allRecords) {
+  const map = new Map();
+
+  studentsCache.forEach((student) => {
+    map.set(student.registerNumber, student);
+  });
+
+  allRecords.forEach((record) => {
+    if (!record?.registerNumber) return;
+    if (!map.has(record.registerNumber)) {
+      map.set(record.registerNumber, {
+        registerNumber: record.registerNumber,
+        studentName: record.studentName,
+        className: record.className,
+        section: record.section,
+      });
+    }
+  });
+
+  const classValue = classFilter?.value || "all";
+  const sectionValue = sectionFilter?.value || "all";
+
+  return [...map.values()]
+    .filter((student) => {
+      const classOk = classValue === "all" || student.className === classValue;
+      const sectionOk = sectionValue === "all" || student.section === sectionValue;
+      return classOk && sectionOk;
+    })
+    .sort((a, b) => a.studentName.localeCompare(b.studentName) || a.registerNumber.localeCompare(b.registerNumber));
+}
+
+function getStudentFieldValues(key) {
+  return [...new Set(studentsCache.map((student) => student[key]).filter(Boolean))].sort();
+}
+
+function syncRecordFormStudent(registerNumber) {
+  if (!recordForm) return;
+  const student = studentsCache.find((item) => item.registerNumber === registerNumber);
+  if (!student) return;
+
+  const studentInput = recordForm.querySelector("#studentName");
+  const registerInput = recordForm.querySelector("#registerNumber");
+  const classInput = recordForm.querySelector("#className");
+  const sectionInput = recordForm.querySelector("#sectionName");
+
+  if (studentInput) studentInput.value = student.studentName;
+  if (registerInput) registerInput.value = student.registerNumber;
+  if (classInput) classInput.value = student.className;
+  if (sectionInput) sectionInput.value = student.section;
 }
 
 function applyGlobalFilters(records) {
@@ -290,7 +377,7 @@ function renderClassRecords(records) {
 function renderStudentReport(records) {
   const selectedRegister = studentFilter.value;
   const studentOnly = selectedRegister ? records.filter((r) => r.registerNumber === selectedRegister) : [];
-  fillRequiredFilter(studentTermFilter, uniqueValues(studentOnly, "termName"), "Select term");
+  fillRequiredFilter(studentTermFilter, uniqueValues(studentOnly, "termName"), studentOnly.length ? "Select term" : "No terms yet");
   const selectedTerm = studentTermFilter.value;
 
   if (!selectedRegister) {
@@ -378,9 +465,18 @@ function setActiveView() {
 function renderAll(allRecords) {
   if (!Array.isArray(allRecords)) allRecords = [];
 
-  fillFilter(classFilter, uniqueValues(allRecords, "className"), "All Classes");
-  if (sectionFilter) fillFilter(sectionFilter, uniqueValues(allRecords, "section"), "All Sections");
-  fillRequiredFilter(studentFilter, uniqueValues(allRecords, "registerNumber"), "Select register number");
+  const classValues = [...new Set([...uniqueValues(allRecords, "className"), ...getStudentFieldValues("className")])].sort();
+  const sectionValues = [...new Set([...uniqueValues(allRecords, "section"), ...getStudentFieldValues("section")])].sort();
+
+  fillFilter(classFilter, classValues, "All Classes");
+  if (sectionFilter) fillFilter(sectionFilter, sectionValues, "All Sections");
+  const visibleStudents = getVisibleStudents(allRecords);
+  fillStudentRoster(studentRoster, visibleStudents);
+  fillRequiredFilter(
+    studentFilter,
+    visibleStudents.map((student) => student.registerNumber),
+    "Select register number"
+  );
 
   if (currentUser?.classTeacherFor && !currentUser?.subject && classFilter) {
     classFilter.value = currentUser.classTeacherFor;
@@ -448,6 +544,7 @@ function startEditRecordById(recordId) {
   if (teacherSubjectInput) teacherSubjectInput.value = record.classTeacherSubject;
   if (termInput) termInput.value = record.termName;
   if (marksInput) marksInput.value = String(record.marks);
+  if (studentRoster) studentRoster.value = record.registerNumber;
   if (submitBtn) submitBtn.textContent = "Update Record";
 
   editingRecordId = recordId;
@@ -559,6 +656,7 @@ if (recordForm) {
     const teacherSubjectInput = recordForm.querySelector("#classTeacherSubject");
     const termInput = recordForm.querySelector("#termName");
     if (autoFillAll) autoFillAll.checked = false;
+    if (studentRoster) studentRoster.value = "";
     if (!wasEditing) {
       if (classInput) classInput.value = classValue;
       if (sectionInput) sectionInput.value = sectionValue;
@@ -568,6 +666,12 @@ if (recordForm) {
       if (termInput) termInput.value = termValue;
     }
     await refreshAndRender();
+  });
+}
+
+if (studentRoster) {
+  studentRoster.addEventListener("change", () => {
+    syncRecordFormStudent(studentRoster.value);
   });
 }
 
@@ -779,6 +883,7 @@ if (academicYearInput && !academicYearInput.value) {
 
 async function refreshAndRender() {
   await fetchCurrentUser();
+  studentsCache = await fetchStudents();
   recordsCache = await fetchRecords();
   renderAll(recordsCache);
 }

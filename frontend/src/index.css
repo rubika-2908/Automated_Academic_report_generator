@@ -139,6 +139,9 @@
   .stat-grid {
     @apply grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4;
   }
+  .stat-grid--three {
+    @apply md:grid-cols-3 xl:grid-cols-3;
+  }
   .stat-card {
     @apply relative overflow-hidden rounded-2xl p-5 text-white shadow-lg min-h-[120px] flex gap-4 items-center;
   }

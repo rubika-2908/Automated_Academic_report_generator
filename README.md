@@ -1,10 +1,10 @@
 # Academic Report Generator
 
-A frontend-based web application to manage student academic records, view analytics, and generate marksheets.
+A web application to manage student academic records, authenticate users, view analytics, and generate marksheets.
 
 ## Features
 
-- User Registration and Login (stored in browser `localStorage`)
+- User registration and login with backend authentication
 - Create and manage student records:
   - Student Name
   - Class
@@ -27,7 +27,9 @@ A frontend-based web application to manage student academic records, view analyt
 - HTML5
 - CSS3
 - JavaScript (Vanilla)
-- Browser `localStorage` (no backend required)
+- Node.js
+- Express.js
+- MongoDB
 
 ## Project Structure
 
@@ -36,28 +38,62 @@ Academic_report/
 ├── index.html
 ├── register.html
 ├── dashboard.html
+├── config.js
+├── vercel.json
 ├── styles.css
 ├── dashboard.css
 ├── script.js
 ├── dashboard.js
 ├── logo.png
-└── backend/   (optional, not required for frontend usage)
+├── backend/
+│   ├── railway.json
+│   └── .env.example
+└── frontend/   (optional React/Vite frontend)
 ```
-## How to Run (Frontend Only)
 
-Open terminal in project folder.
-Start a local server:
-`py -m http.server 5500`
+## Local Run
 
-Open in browser:
+1. Start the backend from `backend/`:
+```bash
+npm install
+npm start
+```
 
-`http://localhost:5500/register.html
-http://localhost:5500/index.html`
+2. Start the static frontend from the project root:
+```bash
+py -m http.server 5500
+```
 
-Usage Flow
-Register a new user.
-Login with the same credentials.
-Open dashboard and create records.
-Use filters/views to analyze results.
-Download/print marksheets as needed.
+3. Open:
+```text
+http://localhost:5500/index.html
+http://localhost:5500/register.html
+```
+
+## Deployment
+
+### Frontend on Vercel
+
+- Deploy the project root as a static site.
+- After Railway gives you a backend URL, update [config.js](C:/Users/Rubika/OneDrive/Desktop/Academic_report/config.js) and replace:
+```js
+const DEPLOYED_API_BASE_URL = "https://your-railway-app.up.railway.app/api";
+```
+- Vercel will use [vercel.json](C:/Users/Rubika/OneDrive/Desktop/Academic_report/vercel.json) automatically.
+
+### Backend on Railway
+
+- Deploy the `backend/` folder as the service root.
+- Railway will use [backend/railway.json](C:/Users/Rubika/OneDrive/Desktop/Academic_report/backend/railway.json).
+- Set these variables in Railway:
+```env
+MONGO_URI=your_mongodb_connection_string
+JWT_SECRET=your_strong_secret
+FRONTEND_URL=https://your-frontend.vercel.app
+ALLOWED_ORIGINS=https://your-frontend.vercel.app
+```
+
+### Optional React/Vite frontend
+
+- If you deploy `frontend/` instead of the root static pages, create `frontend/.env` from [frontend/.env.example](C:/Users/Rubika/OneDrive/Desktop/Academic_report/frontend/.env.example).
 

@@ -29,6 +29,12 @@
         <h2>Create Record</h2>
         <form id="recordForm" class="record-form" novalidate>
           <label>
+            <span>Select Student</span>
+            <select id="studentRoster" name="studentRoster">
+              <option value="">Choose a student</option>
+            </select>
+          </label>
+          <label>
             <span>Student Name</span>
             <input type="text" id="studentName" name="studentName" placeholder="Enter student name" required />
           </label>
@@ -181,6 +187,7 @@
       </section>
     </main>
 
-    <script src="dashboard.js?v=20260312"></script>
+    <script src="config.js"></script>
+    <script src="dashboard.js?v=20260406"></script>
   </body>
 </html>

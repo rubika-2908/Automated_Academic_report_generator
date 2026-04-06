@@ -43,6 +43,8 @@ backend/
 PORT=5000
 MONGO_URI=mongodb://127.0.0.1:27017/academic_report_db
 JWT_SECRET=replace_with_a_strong_secret_key
+FRONTEND_URL=http://localhost:5500
+ALLOWED_ORIGINS=http://localhost:5500,https://your-frontend.vercel.app
 ```
 2. Install packages:
 ```bash
@@ -54,6 +56,21 @@ npm start
 ```
 
 Base URL: `http://localhost:5000/api`
+
+## Railway Deployment
+
+- Deploy the `backend/` folder to Railway.
+- Railway uses [railway.json](C:/Users/Rubika/OneDrive/Desktop/Academic_report/backend/railway.json).
+- Add these Railway variables:
+```env
+MONGO_URI=your_mongodb_connection_string
+JWT_SECRET=your_strong_secret
+FRONTEND_URL=https://your-frontend.vercel.app
+ALLOWED_ORIGINS=https://your-frontend.vercel.app
+```
+
+- Health check:
+`GET /api/health`
 
 ## Endpoints
 

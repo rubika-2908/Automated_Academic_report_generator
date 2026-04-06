@@ -11,8 +11,23 @@ const { notFoundHandler, errorHandler } = require("./middleware/errorHandler");
 dotenv.config();
 
 const app = express();
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || process.env.FRONTEND_URL || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
-app.use(cors());
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin || !allowedOrigins.length || allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error("CORS origin not allowed"));
+  },
+};
+
+app.use(cors(corsOptions));
 app.use(securityHeaders);
 app.use(requestLogger);
 app.use(express.json());
