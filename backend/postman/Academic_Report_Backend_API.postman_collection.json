@@ -1,0 +1,293 @@
+{
+  "info": {
+    "name": "Academic Report Backend API",
+    "description": "Postman test collection for health, auth, and protected records CRUD APIs.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "bb9a8ec2-39f2-4bf7-a84f-becb41bd5739"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000/api" },
+    { "key": "name", "value": "Rubika" },
+    { "key": "email", "value": "rubika@example.com" },
+    { "key": "password", "value": "Password123" },
+    { "key": "token", "value": "" },
+    { "key": "recordId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health - GET /health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/health"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+              "const data = pm.response.json();",
+              "pm.test('Health response is successful', function () { pm.expect(data.success).to.eql(true); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth - POST /auth/register",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"{{name}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+        },
+        "url": "{{baseUrl}}/auth/register"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 201 (new) or 400 (already exists)', function () {",
+              "  pm.expect([201, 400]).to.include(pm.response.code);",
+              "});",
+              "const body = pm.response.json();",
+              "if (pm.response.code === 201) {",
+              "  pm.collectionVariables.set('token', body.data.token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth - POST /auth/login",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+        },
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+              "const body = pm.response.json();",
+              "pm.test('Token is returned', function () { pm.expect(body.data.token).to.be.a('string').and.not.empty; });",
+              "pm.collectionVariables.set('token', body.data.token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Records - GET /records (Unauthorized)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/records"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 401 without token', function () { pm.response.to.have.status(401); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Records - POST /records",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"studentName\": \"Aarav Sharma\",\n  \"className\": \"Class 10\",\n  \"subject\": \"Mathematics\",\n  \"marks\": 88,\n  \"term\": \"First Term\"\n}"
+        },
+        "url": "{{baseUrl}}/records"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
+              "const body = pm.response.json();",
+              "pm.test('Record id is returned', function () { pm.expect(body.data._id).to.be.a('string').and.not.empty; });",
+              "pm.collectionVariables.set('recordId', body.data._id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Records - GET /records",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": "{{baseUrl}}/records"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+              "const body = pm.response.json();",
+              "pm.test('Records array exists', function () { pm.expect(body.data).to.be.an('array'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Records - GET /records/:id",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": "{{baseUrl}}/records/{{recordId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+              "const body = pm.response.json();",
+              "pm.test('Fetched record matches id', function () { pm.expect(body.data._id).to.eql(pm.collectionVariables.get('recordId')); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Records - PUT /records/:id",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"studentName\": \"Aarav Sharma\",\n  \"className\": \"Class 10\",\n  \"subject\": \"Mathematics\",\n  \"marks\": 92,\n  \"term\": \"Second Term\"\n}"
+        },
+        "url": "{{baseUrl}}/records/{{recordId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+              "const body = pm.response.json();",
+              "pm.test('Record updated', function () {",
+              "  pm.expect(body.data.marks).to.eql(92);",
+              "  pm.expect(body.data.term).to.eql('Second Term');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Records - DELETE /records/:id",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": "{{baseUrl}}/records/{{recordId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Records - GET /records/:id (After Delete)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": "{{baseUrl}}/records/{{recordId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 404 after delete', function () { pm.response.to.have.status(404); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Records - POST /records/seed/bulk",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"studentsPerClass\": 2,\n  \"classNames\": [\"Class 6\", \"Class 7\"],\n  \"subjects\": [\"Mathematics\", \"Science\"],\n  \"terms\": [\"First Term\"],\n  \"clearExisting\": false\n}"
+        },
+        "url": "{{baseUrl}}/records/seed/bulk"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
+              "const body = pm.response.json();",
+              "pm.test('Bulk summary exists', function () { pm.expect(body.summary.createdCount).to.be.a('number'); });"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,205 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: "Manrope", system-ui, sans-serif;
+    @apply bg-brand-50 text-slate-900;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl bg-white shadow-soft border border-brand-100;
+  }
+  .card-header {
+    @apply flex items-center justify-between gap-3 border-b border-brand-100 px-5 py-4;
+  }
+  .card-body {
+    @apply px-5 py-4;
+  }
+  .pill {
+    @apply rounded-full border border-brand-200 bg-white px-3 py-1 text-sm font-semibold text-brand-800;
+  }
+  .btn-primary {
+    @apply rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-brand-500 transition;
+  }
+  .btn-outline {
+    @apply rounded-xl border border-brand-200 px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50 transition;
+  }
+  .btn-ghost {
+    @apply rounded-xl px-3 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50 transition;
+  }
+  .input {
+    @apply w-full rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400;
+  }
+  .table-th {
+    @apply bg-brand-50 text-brand-900 text-xs font-semibold uppercase tracking-wide;
+  }
+  .table-td {
+    @apply text-sm text-slate-700;
+  }
+}
+
+@layer components {
+  .dashboard-shell {
+    @apply min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 flex;
+  }
+  .sidebar {
+    @apply bg-gradient-to-b from-brand-900 via-brand-800 to-brand-900 text-white w-64 flex flex-col shadow-xl;
+  }
+  .sidebar--collapsed {
+    @apply w-20;
+  }
+  .sidebar__brand {
+    @apply flex items-center gap-3 px-5 py-5 border-b border-white/10;
+  }
+  .brand-badge {
+    @apply h-10 w-10 rounded-xl bg-white/15 flex items-center justify-center text-lg font-bold tracking-wide;
+  }
+  .brand-title {
+    @apply text-lg font-semibold flex-1;
+  }
+  .sidebar__toggle {
+    @apply text-white/70 hover:text-white transition;
+  }
+  .sidebar__nav {
+    @apply flex-1 px-3 py-6 space-y-2;
+  }
+  .sidebar__link {
+    @apply w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold transition text-white/80 hover:bg-white/10;
+  }
+  .sidebar__link.is-active {
+    @apply bg-white/15 text-white shadow-soft;
+  }
+  .sidebar__icon {
+    @apply h-9 w-9 rounded-xl bg-white/10 flex items-center justify-center;
+  }
+  .shell-body {
+    @apply flex-1 flex flex-col;
+  }
+  .topbar {
+    @apply px-6 py-4 flex items-center justify-between text-white shadow-lg;
+    background: linear-gradient(90deg, #1e3a8a 0%, #2563eb 45%, #1d4ed8 100%);
+  }
+  .topbar__title {
+    @apply text-lg md:text-xl font-semibold;
+  }
+  .topbar__subtitle {
+    @apply text-sm text-blue-100;
+  }
+  .topbar__actions {
+    @apply flex items-center gap-3;
+  }
+  .topbar__search {
+    @apply hidden md:flex items-center bg-white/10 rounded-full px-3 py-2;
+  }
+  .topbar__input {
+    @apply bg-transparent outline-none text-sm text-white placeholder:text-blue-100;
+  }
+  .topbar__icon-btn {
+    @apply h-9 w-9 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition;
+  }
+  .profile {
+    @apply relative;
+  }
+  .profile__btn {
+    @apply h-9 w-9 rounded-full bg-white text-brand-900 font-semibold shadow;
+  }
+  .profile__menu {
+    @apply absolute right-0 mt-2 w-56 rounded-xl border border-brand-100 bg-white shadow-soft overflow-hidden text-slate-900;
+  }
+  .profile__meta {
+    @apply px-4 py-3 border-b border-brand-100;
+  }
+  .profile__name {
+    @apply text-sm font-semibold text-slate-900;
+  }
+  .profile__email {
+    @apply text-xs text-slate-600;
+  }
+  .profile__item {
+    @apply w-full text-left px-4 py-2 text-sm text-slate-900 hover:bg-brand-50;
+  }
+  .shell-content {
+    @apply flex-1 p-6 space-y-6;
+  }
+  .welcome {
+    @apply bg-white rounded-2xl px-6 py-4 shadow-soft border border-brand-100;
+  }
+  .welcome h2 {
+    @apply text-2xl font-semibold text-brand-900;
+  }
+  .welcome p {
+    @apply text-sm text-brand-600;
+  }
+  .stat-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4;
+  }
+  .stat-card {
+    @apply relative overflow-hidden rounded-2xl p-5 text-white shadow-lg min-h-[120px] flex gap-4 items-center;
+  }
+  .stat-card__icon {
+    @apply h-12 w-12 rounded-2xl bg-white/20 flex items-center justify-center;
+  }
+  .stat-card__icon svg {
+    @apply h-6 w-6;
+    fill: currentColor;
+  }
+  .stat-card__label {
+    @apply text-sm text-white/80;
+  }
+  .stat-card__value {
+    @apply text-2xl font-semibold;
+  }
+  .stat-card__bars {
+    @apply absolute right-4 bottom-3 h-10 w-16 opacity-30;
+    background: linear-gradient(0deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 100%);
+    mask: repeating-linear-gradient(90deg, #000 0 8px, transparent 8px 12px);
+  }
+  .stat-card--blue {
+    background: linear-gradient(120deg, #1e3a8a 0%, #2563eb 100%);
+  }
+  .stat-card--orange {
+    background: linear-gradient(120deg, #f97316 0%, #f59e0b 100%);
+  }
+  .stat-card--green {
+    background: linear-gradient(120deg, #059669 0%, #10b981 100%);
+  }
+  .stat-card--red {
+    background: linear-gradient(120deg, #dc2626 0%, #ef4444 100%);
+  }
+  .panel-grid {
+    @apply grid grid-cols-1 xl:grid-cols-3 gap-4;
+  }
+  .panel {
+    @apply rounded-2xl bg-white shadow-soft border border-brand-100;
+  }
+  .panel__header {
+    @apply px-5 py-4 border-b border-brand-100 text-brand-900 font-semibold;
+  }
+  .panel__body {
+    @apply px-5 py-4;
+  }
+  .panel__body--compact {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+  .panel__body--compact canvas {
+    height: 180px !important;
+  }
+  .chart-compact canvas {
+    height: 220px !important;
+  }
+  .class12-chart {
+    height: 180px;
+    width: 100%;
+  }
+  .class12-chart canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
+}

@@ -1,4 +1,5 @@
-const STORAGE_KEY = "academic_records_v1";
+const API_BASE_URL = "http://localhost:5000/api";
+const AUTH_TOKEN_KEY = "academic_auth_token";
 
 const recordForm = document.getElementById("recordForm");
 const createPanel = document.getElementById("createPanel");
@@ -6,26 +7,24 @@ const toggleCreateBtn = document.getElementById("toggleCreateBtn");
 const viewMode = document.getElementById("viewMode");
 
 const classFilter = document.getElementById("classFilter");
-const subjectFilter = document.getElementById("subjectFilter");
-const specificClassFilter = document.getElementById("specificClassFilter");
-const specificSubjectFilter = document.getElementById("specificSubjectFilter");
+const sectionFilter = document.getElementById("sectionFilter");
 const studentFilter = document.getElementById("studentFilter");
 const studentTermFilter = document.getElementById("studentTermFilter");
 const downloadStudentReportBtn = document.getElementById("downloadStudentReportBtn");
 const downloadStudentReportPdfBtn = document.getElementById("downloadStudentReportPdfBtn");
 const academicYearInput = document.getElementById("academicYearInput");
-const chartClassFilter = document.getElementById("chartClassFilter");
-const chartSubjectFilter = document.getElementById("chartSubjectFilter");
+const autoFillAll = document.getElementById("autoFillAll");
 
 const classWiseView = document.getElementById("classWiseView");
-const subjectWiseView = document.getElementById("subjectWiseView");
-const classAverageView = document.getElementById("classAverageView");
-const subjectPerClassAverageView = document.getElementById("subjectPerClassAverageView");
-const specificAverageView = document.getElementById("specificAverageView");
 const studentReportView = document.getElementById("studentReportView");
-const termComparisonChart = document.getElementById("termComparisonChart");
-const chartSummary = document.getElementById("chartSummary");
 const SCHOOL_NAME = "Adharsh Vidhyalaya Matric Hr Sec School";
+const DEFAULT_SUBJECTS = ["Tamil", "English", "Mathematics", "Physics", "Chemistry", "Biology"];
+const DEFAULT_TERMS = ["Term 1", "Term 2", "Term 3"];
+const BIOLOGY_SUBJECT = "Biology";
+let editingRecordId = "";
+let recordsCache = [];
+let lastFetchFailed = false;
+let currentUser = null;
 
 function makeRecordId(index = 0) {
   return `rec_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`;
@@ -42,42 +41,93 @@ function escapeHtml(value) {
 
 function normalizeTerm(termName) {
   const t = String(termName || "").trim().toLowerCase();
+  if (t === "term 1" || t === "term i") return "Term 1";
+  if (t === "term 2" || t === "term ii") return "Term 2";
+  if (t === "term 3" || t === "term iii") return "Term 3";
   if (t === "first term" || t === "first mid term") return "First Term";
   if (t === "second term" || t === "second mid term") return "Second Term";
   if (t === "third term") return "Third Term";
-  return "First Term";
+  return String(termName || "").trim() || "Term 1";
 }
 
-function loadRecords() {
+function getAuthToken() {
+  return localStorage.getItem(AUTH_TOKEN_KEY) || "";
+}
+
+async function apiRequest(path, options = {}) {
+  const token = getAuthToken();
+  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload?.success === false) {
+    const message = payload?.message || "Request failed.";
+    throw new Error(message);
+  }
+  return payload;
+}
+
+async function fetchCurrentUser() {
   try {
-    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-    if (!Array.isArray(data)) return [];
-
-    let changed = false;
-    const mapped = data
-      .map((r, index) => {
-        const normalizedId = String(r.id || "").trim() || makeRecordId(index);
-        if (!r.id) changed = true;
-        return {
-          id: normalizedId,
-        studentName: String(r.studentName || "").trim(),
-        className: String(r.className || "").trim(),
-        subjectName: String(r.subjectName || "").trim(),
-        termName: normalizeTerm(r.termName),
-        marks: Number(r.marks),
-        };
-      })
-      .filter((r) => r.id && r.studentName && r.className && r.subjectName && Number.isFinite(r.marks));
-
-    if (changed) saveRecords(mapped);
-    return mapped;
+    const payload = await apiRequest("/auth/me", { method: "GET" });
+    currentUser = payload?.data || null;
+    return currentUser;
   } catch {
-    return [];
+    currentUser = null;
+    return null;
   }
 }
 
-function saveRecords(records) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+async function fetchRecords() {
+  const token = getAuthToken();
+  if (!token) {
+    lastFetchFailed = true;
+    return [];
+  }
+
+  try {
+    const user = currentUser || (await fetchCurrentUser());
+    const isAdmin = user?.role === "admin";
+    const hasSubject = Boolean(user?.subject);
+    const classTeacherFor = user?.classTeacherFor;
+    const endpoint =
+      isAdmin || hasSubject
+        ? "/records"
+        : classTeacherFor
+          ? `/records/class/${encodeURIComponent(classTeacherFor)}`
+          : "/records";
+    const payload = await apiRequest(endpoint, { method: "GET" });
+    const records = Array.isArray(payload?.data) ? payload.data : [];
+    lastFetchFailed = false;
+    return records
+      .map((r) => ({
+        id: String(r._id || r.id || "").trim(),
+        studentName: String(r.studentName || "").trim(),
+        registerNumber: String(r.registerNumber || "").trim(),
+        className: String(r.className || "").trim(),
+        section: String(r.section || "").trim(),
+        classTeacherName: String(r.classTeacherName || "").trim(),
+        classTeacherSubject: String(r.classTeacherSubject || "").trim(),
+        subjectName: String(r.subject || r.subjectName || "").trim(),
+        termName: normalizeTerm(r.term || r.termName),
+        marks: Number(r.marks),
+      }))
+      .filter(
+        (r) =>
+          r.id &&
+          r.studentName &&
+          r.registerNumber &&
+          r.className &&
+          r.section &&
+          r.subjectName &&
+          r.classTeacherName &&
+          r.classTeacherSubject &&
+          Number.isFinite(r.marks)
+      );
+  } catch {
+    lastFetchFailed = true;
+    return [];
+  }
 }
 
 function uniqueValues(records, key) {
@@ -113,8 +163,8 @@ function fillRequiredFilter(select, values, placeholder) {
 function applyGlobalFilters(records) {
   return records.filter((r) => {
     const classOk = classFilter.value === "all" || r.className === classFilter.value;
-    const subjectOk = subjectFilter.value === "all" || r.subjectName === subjectFilter.value;
-    return classOk && subjectOk;
+    const sectionOk = !sectionFilter || sectionFilter.value === "all" || r.section === sectionFilter.value;
+    return classOk && sectionOk;
   });
 }
 
@@ -142,6 +192,24 @@ function createGroup(title, contentHtml) {
   return `<section class="group"><h4 class="group__title">${title}</h4>${contentHtml}</section>`;
 }
 
+function randomMarks(min = 45, max = 100) {
+  const low = Math.max(0, Math.min(100, Math.floor(min)));
+  const high = Math.max(low, Math.min(100, Math.floor(max)));
+  return Math.floor(Math.random() * (high - low + 1)) + low;
+}
+
+function createActionMenu(recordId) {
+  return `<div class="table-actions">
+    <details class="action-menu">
+      <summary class="action-dots" aria-label="Row actions">...</summary>
+      <div class="action-popover">
+        <button class="action-item record-edit" data-id="${recordId}" type="button">Edit</button>
+        <button class="action-item action-item--danger record-delete" data-id="${recordId}" type="button">Delete</button>
+      </div>
+    </details>
+  </div>`;
+}
+
 function gradeFromMarks(marks) {
   if (marks >= 90) return "A+";
   if (marks >= 80) return "A";
@@ -156,7 +224,42 @@ function getStudentTermRows(records, studentName, termName) {
 }
 
 function renderClassRecords(records) {
-  const groups = groupBy(records, "className");
+  if (currentUser?.subject === BIOLOGY_SUBJECT) {
+    const biologyRows = records.filter((r) => r.subjectName === BIOLOGY_SUBJECT);
+    const groups = biologyRows.reduce((acc, r) => {
+      const key = `${r.className} - ${r.section}`;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(r);
+      return acc;
+    }, {});
+    const keys = Object.keys(groups).sort();
+    if (!keys.length) {
+      classWiseView.innerHTML = '<p class="empty">No biology records to show.</p>';
+      return;
+    }
+
+    classWiseView.innerHTML = keys
+      .map((key) => {
+        const rows = groups[key];
+        const average = avg(rows);
+        const averageText = average === null ? "N/A" : `${average.toFixed(2)}%`;
+        return `
+          <section class="metric">
+            <p class="metric__label">${key} Biology Average</p>
+            <p class="metric__value">${averageText}</p>
+          </section>
+        `;
+      })
+      .join("");
+    return;
+  }
+
+  const groups = records.reduce((acc, r) => {
+    const key = `${r.className} - ${r.section}`;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(r);
+    return acc;
+  }, {});
   const keys = Object.keys(groups).sort();
   if (!keys.length) {
     classWiseView.innerHTML = '<p class="empty">No class-wise records to show.</p>';
@@ -167,118 +270,35 @@ function renderClassRecords(records) {
     .map((key) => {
       const rows = groups[key];
       const rowsHtml = createTable(
-        ["Student", "Subject", "Term", "Marks", "Action"],
+        ["Reg No", "Student", "Subject", "Term", "Marks", "Class Teacher", "Action"],
         rows.map((r) => [
+          r.registerNumber,
           r.studentName,
           r.subjectName,
           r.termName,
           r.marks,
-          `<button class="btn btn--danger record-delete" data-id="${r.id}" type="button">Delete</button>`,
+          `${r.classTeacherName} (${r.classTeacherSubject})`,
+          createActionMenu(r.id),
         ])
       );
       const average = avg(rows);
       return createGroup(`${key} (${rows.length}) | Avg: ${average === null ? "N/A" : `${average.toFixed(2)}%`}`, rowsHtml);
     })
     .join("");
-}
-
-function renderSubjectRecords(records) {
-  const groups = groupBy(records, "subjectName");
-  const keys = Object.keys(groups).sort();
-  if (!keys.length) {
-    subjectWiseView.innerHTML = '<p class="empty">No subject-wise records to show.</p>';
-    return;
-  }
-
-  subjectWiseView.innerHTML = keys
-    .map((key) => {
-      const rows = groups[key];
-      const rowsHtml = createTable(
-        ["Student", "Class", "Term", "Marks", "Action"],
-        rows.map((r) => [
-          r.studentName,
-          r.className,
-          r.termName,
-          r.marks,
-          `<button class="btn btn--danger record-delete" data-id="${r.id}" type="button">Delete</button>`,
-        ])
-      );
-      const average = avg(rows);
-      return createGroup(`${key} (${rows.length}) | Avg: ${average === null ? "N/A" : `${average.toFixed(2)}%`}`, rowsHtml);
-    })
-    .join("");
-}
-
-function renderClassAverage(records) {
-  const groups = groupBy(records, "className");
-  const keys = Object.keys(groups).sort();
-  const rows = keys.map((k) => [k, `${avg(groups[k]).toFixed(2)}%`, groups[k].length]);
-  classAverageView.innerHTML = createGroup("Average Percentage by Class", createTable(["Class", "Average", "Records"], rows));
-}
-
-function renderSubjectPerClassAverage(records) {
-  const bucket = {};
-  records.forEach((r) => {
-    const key = `${r.className}__${r.subjectName}`;
-    if (!bucket[key]) bucket[key] = { className: r.className, subjectName: r.subjectName, marks: [] };
-    bucket[key].marks.push(r.marks);
-  });
-  const rows = Object.values(bucket)
-    .sort((a, b) => (a.className === b.className ? a.subjectName.localeCompare(b.subjectName) : a.className.localeCompare(b.className)))
-    .map((b) => {
-      const average = b.marks.reduce((s, m) => s + m, 0) / b.marks.length;
-      return [b.className, b.subjectName, `${average.toFixed(2)}%`, b.marks.length];
-    });
-
-  subjectPerClassAverageView.innerHTML = createGroup(
-    "Subject Average per Class",
-    createTable(["Class", "Subject", "Average", "Records"], rows)
-  );
-}
-
-function renderSpecificAverage(records) {
-  const selectedClass = specificClassFilter.value;
-  const selectedSubject = specificSubjectFilter.value;
-  if (!selectedClass || !selectedSubject) {
-    specificAverageView.innerHTML = '<p class="empty">Select a class and subject to view the particular average.</p>';
-    return;
-  }
-
-  const subset = records.filter((r) => r.className === selectedClass && r.subjectName === selectedSubject);
-  if (!subset.length) {
-    specificAverageView.innerHTML = '<p class="empty">No records available for this class and subject.</p>';
-    return;
-  }
-
-  const overall = avg(subset);
-  const termGroups = groupBy(subset, "termName");
-  const termRows = ["First Term", "Second Term", "Third Term"].map((term) => {
-    const rows = termGroups[term] || [];
-    const value = rows.length ? `${avg(rows).toFixed(2)}%` : "N/A";
-    return [term, value, rows.length];
-  });
-
-  specificAverageView.innerHTML = `
-    <section class="metric">
-      <p class="metric__label">${selectedClass} - ${selectedSubject}</p>
-      <p class="metric__value">${overall.toFixed(2)}%</p>
-    </section>
-    ${createGroup("Term-wise Breakdown", createTable(["Term", "Average", "Records"], termRows))}
-  `;
 }
 
 function renderStudentReport(records) {
-  const selectedStudent = studentFilter.value;
-  const studentOnly = selectedStudent ? records.filter((r) => r.studentName === selectedStudent) : [];
+  const selectedRegister = studentFilter.value;
+  const studentOnly = selectedRegister ? records.filter((r) => r.registerNumber === selectedRegister) : [];
   fillRequiredFilter(studentTermFilter, uniqueValues(studentOnly, "termName"), "Select term");
   const selectedTerm = studentTermFilter.value;
 
-  if (!selectedStudent) {
-    studentReportView.innerHTML = '<p class="empty">Select a student to view the full report.</p>';
+  if (!selectedRegister) {
+    studentReportView.innerHTML = '<p class="empty">Select a register number to view the full report.</p>';
     return;
   }
 
-  const studentRecords = records.filter((r) => r.studentName === selectedStudent);
+  const studentRecords = records.filter((r) => r.registerNumber === selectedRegister);
   if (!studentRecords.length) {
     studentReportView.innerHTML = '<p class="empty">No records available for this student.</p>';
     return;
@@ -289,115 +309,63 @@ function renderStudentReport(records) {
     return;
   }
 
-  const termRecords = getStudentTermRows(records, selectedStudent, selectedTerm);
+  const termRecords = studentRecords.filter((r) => r.termName === selectedTerm);
   if (!termRecords.length) {
     studentReportView.innerHTML = '<p class="empty">No records for selected student and term.</p>';
     return;
   }
 
-  const overall = avg(termRecords);
+  const studentName = termRecords[0].studentName;
   const academicYear = String(academicYearInput?.value || "").trim() || "2026-2027";
+  const totalMarks = termRecords.reduce((sum, r) => sum + Number(r.marks || 0), 0);
+  const percentage = avg(termRecords) || 0;
 
   const marksheetRows = termRecords
     .slice()
     .sort((a, b) => a.subjectName.localeCompare(b.subjectName))
     .map((r) => [r.subjectName, r.marks, gradeFromMarks(r.marks)]);
 
-  const tableHtml = createTable(["Subject", "Marks", "Grade"], marksheetRows);
+  const marksheetRowsHtml = marksheetRows
+    .map((row) => `<tr><td>${row[0]}</td><td>${row[1]}</td><td>${row[2]}</td></tr>`)
+    .join("");
+  const tableHtml = `
+    <table>
+      <thead>
+        <tr><th>Subject</th><th>Marks Obtained</th><th>Grade</th></tr>
+      </thead>
+      <tbody>
+        ${marksheetRowsHtml}
+        <tr><td><strong>Total</strong></td><td><strong>${totalMarks}</strong></td><td>-</td></tr>
+        <tr><td><strong>Percentage</strong></td><td><strong>${percentage.toFixed(2)}%</strong></td><td>-</td></tr>
+      </tbody>
+    </table>
+  `;
 
   studentReportView.innerHTML = `
     <section class="marksheet">
       <div class="marksheet__head">
-        <div>
-          <p class="marksheet__title">${SCHOOL_NAME}</p>
-          <p class="marksheet__meta">Academic Year: ${academicYear}</p>
-          <p class="marksheet__meta">Term: ${selectedTerm}</p>
-          <p class="marksheet__meta">Student: ${selectedStudent}</p>
-          <p class="marksheet__meta">Class: ${termRecords[0].className}</p>
-        </div>
+        <p class="marksheet__board">CENTRAL BOARD OF SECONDARY EDUCATION</p>
+        <p class="marksheet__title">${SCHOOL_NAME}</p>
+        <p class="marksheet__meta">Statement of Marks</p>
+      </div>
+      <div class="marksheet__meta-grid">
+        <p><strong>Academic Year:</strong> ${academicYear}</p>
+        <p><strong>Term:</strong> ${selectedTerm}</p>
+        <p><strong>Student Name:</strong> ${studentName}</p>
+        <p><strong>Class:</strong> ${termRecords[0].className}</p>
+        <p><strong>Section:</strong> ${termRecords[0].section}</p>
+        <p><strong>Register No:</strong> ${termRecords[0].registerNumber}</p>
+        <p><strong>Class Teacher:</strong> ${termRecords[0].classTeacherName}</p>
+        <p><strong>Teacher Subject:</strong> ${termRecords[0].classTeacherSubject}</p>
       </div>
       ${tableHtml}
-      <p class="marksheet__avg">Average: ${overall.toFixed(2)}%</p>
+      <div class="marksheet__spacer"></div>
+      <div class="marksheet__signature-row">
+        <p>Student Signature</p>
+        <p>Mentor Signature</p>
+      </div>
     </section>
   `;
-}
-
-function drawTermChart(records) {
-  if (!termComparisonChart) return;
-  const ctx = termComparisonChart.getContext("2d");
-  if (!ctx) return;
-
-  const chartRecords = records.filter((r) => {
-    const classOk = chartClassFilter.value === "all" || r.className === chartClassFilter.value;
-    const subjectOk = chartSubjectFilter.value === "all" || r.subjectName === chartSubjectFilter.value;
-    return classOk && subjectOk;
-  });
-
-  const terms = ["First Term", "Second Term", "Third Term"];
-  const values = terms.map((term) => {
-    const rows = chartRecords.filter((r) => r.termName === term);
-    return rows.length ? avg(rows) : null;
-  });
-
-  const dpr = window.devicePixelRatio || 1;
-  const w = termComparisonChart.clientWidth || 900;
-  const h = 320;
-  termComparisonChart.width = Math.floor(w * dpr);
-  termComparisonChart.height = Math.floor(h * dpr);
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, w, h);
-
-  const left = 56;
-  const right = w - 24;
-  const top = 20;
-  const bottom = h - 44;
-  const chartH = bottom - top;
-
-  ctx.strokeStyle = "#dbe2ee";
-  for (let i = 0; i <= 5; i += 1) {
-    const y = top + (chartH / 5) * i;
-    ctx.beginPath();
-    ctx.moveTo(left, y);
-    ctx.lineTo(right, y);
-    ctx.stroke();
-  }
-
-  ctx.fillStyle = "#637389";
-  ctx.font = "12px Kadwa";
-  ctx.textAlign = "right";
-  for (let i = 0; i <= 5; i += 1) {
-    const y = top + (chartH / 5) * i + 4;
-    ctx.fillText(String(100 - i * 20), left - 8, y);
-  }
-
-  const barW = 90;
-  const gap = 45;
-  const center = left + (right - left) / 2;
-  const xs = [center - barW - gap - barW / 2, center - barW / 2, center + barW / 2 + gap];
-  const colors = ["#2ea5c8", "#2563eb", "#1e40af"];
-
-  ctx.textAlign = "center";
-  terms.forEach((term, i) => {
-    const value = values[i];
-    const numeric = value ?? 0;
-    const barH = (Math.max(0, Math.min(100, numeric)) / 100) * chartH;
-    const y = bottom - barH;
-    ctx.fillStyle = colors[i];
-    ctx.fillRect(xs[i], y, barW, barH);
-    ctx.fillStyle = "#1e2f45";
-    ctx.fillText(term, xs[i] + barW / 2, bottom + 18);
-    ctx.fillText(value === null ? "N/A" : `${numeric.toFixed(2)}%`, xs[i] + barW / 2, y - 6);
-  });
-
-  if (!chartSummary) return;
-  const [f, s, t] = values;
-  if (f === null && s === null && t === null) {
-    chartSummary.textContent = "No term data available for this selection.";
-    return;
-  }
-  chartSummary.textContent = `First: ${f === null ? "N/A" : `${f.toFixed(2)}%`}, Second: ${
-    s === null ? "N/A" : `${s.toFixed(2)}%`
-  }, Third: ${t === null ? "N/A" : `${t.toFixed(2)}%`}.`;
 }
 
 function setActiveView() {
@@ -407,33 +375,83 @@ function setActiveView() {
   });
 }
 
-function renderAll() {
-  const allRecords = loadRecords();
+function renderAll(allRecords) {
+  if (!Array.isArray(allRecords)) allRecords = [];
 
   fillFilter(classFilter, uniqueValues(allRecords, "className"), "All Classes");
-  fillFilter(subjectFilter, uniqueValues(allRecords, "subjectName"), "All Subjects");
-  fillRequiredFilter(specificClassFilter, uniqueValues(allRecords, "className"), "Select class");
-  fillRequiredFilter(specificSubjectFilter, uniqueValues(allRecords, "subjectName"), "Select subject");
-  fillRequiredFilter(studentFilter, uniqueValues(allRecords, "studentName"), "Select student");
-  fillFilter(chartClassFilter, uniqueValues(allRecords, "className"), "All Classes");
-  fillFilter(chartSubjectFilter, uniqueValues(allRecords, "subjectName"), "All Subjects");
+  if (sectionFilter) fillFilter(sectionFilter, uniqueValues(allRecords, "section"), "All Sections");
+  fillRequiredFilter(studentFilter, uniqueValues(allRecords, "registerNumber"), "Select register number");
+
+  if (currentUser?.classTeacherFor && !currentUser?.subject && classFilter) {
+    classFilter.value = currentUser.classTeacherFor;
+    classFilter.disabled = true;
+  }
+
+  if (currentUser?.subject === BIOLOGY_SUBJECT) {
+    if (classFilter) {
+      classFilter.value = "all";
+      classFilter.disabled = true;
+    }
+    if (viewMode) viewMode.value = "classRecords";
+    const viewLabel = viewMode?.closest("label");
+    if (viewLabel) viewLabel.style.display = "none";
+    const studentView = document.querySelector('[data-view="studentReport"]');
+    if (studentView) studentView.style.display = "none";
+    if (toggleCreateBtn) toggleCreateBtn.style.display = "none";
+    if (createPanel) createPanel.style.display = "none";
+  }
 
   const filtered = applyGlobalFilters(allRecords);
   renderClassRecords(filtered);
-  renderSubjectRecords(filtered);
-  renderClassAverage(filtered);
-  renderSubjectPerClassAverage(filtered);
-  renderSpecificAverage(allRecords);
   renderStudentReport(allRecords);
-  drawTermChart(allRecords);
   setActiveView();
+
+  if (lastFetchFailed) {
+    classWiseView.innerHTML = '<p class="empty">Unable to load records. Please log in again.</p>';
+  }
 }
 
-function deleteRecordById(recordId) {
-  const current = loadRecords();
-  const next = current.filter((r) => r.id !== recordId);
-  saveRecords(next);
-  renderAll();
+async function deleteRecordById(recordId) {
+  try {
+    await apiRequest(`/records/${recordId}`, { method: "DELETE" });
+  } catch {
+    return;
+  }
+  if (editingRecordId === recordId) {
+    editingRecordId = "";
+  }
+  await refreshAndRender();
+}
+
+function startEditRecordById(recordId) {
+  if (!recordForm) return;
+  const record = recordsCache.find((r) => r.id === recordId);
+  if (!record) return;
+
+  const studentInput = recordForm.querySelector("#studentName");
+  const registerInput = recordForm.querySelector("#registerNumber");
+  const classInput = recordForm.querySelector("#className");
+  const sectionInput = recordForm.querySelector("#sectionName");
+  const subjectInput = recordForm.querySelector("#subjectName");
+  const teacherInput = recordForm.querySelector("#classTeacherName");
+  const teacherSubjectInput = recordForm.querySelector("#classTeacherSubject");
+  const termInput = recordForm.querySelector("#termName");
+  const marksInput = recordForm.querySelector("#marks");
+  const submitBtn = recordForm.querySelector('button[type="submit"]');
+
+  if (studentInput) studentInput.value = record.studentName;
+  if (registerInput) registerInput.value = record.registerNumber;
+  if (classInput) classInput.value = record.className;
+  if (sectionInput) sectionInput.value = record.section;
+  if (subjectInput) subjectInput.value = record.subjectName;
+  if (teacherInput) teacherInput.value = record.classTeacherName;
+  if (teacherSubjectInput) teacherSubjectInput.value = record.classTeacherSubject;
+  if (termInput) termInput.value = record.termName;
+  if (marksInput) marksInput.value = String(record.marks);
+  if (submitBtn) submitBtn.textContent = "Update Record";
+
+  editingRecordId = recordId;
+  if (createPanel) createPanel.classList.remove("is-hidden");
 }
 
 if (toggleCreateBtn && createPanel) {
@@ -443,7 +461,7 @@ if (toggleCreateBtn && createPanel) {
 }
 
 if (recordForm) {
-  recordForm.addEventListener("submit", (event) => {
+  recordForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!recordForm.checkValidity()) {
       recordForm.reportValidity();
@@ -451,49 +469,137 @@ if (recordForm) {
     }
 
     const formData = new FormData(recordForm);
-    const record = {
-      id: makeRecordId(),
-      studentName: String(formData.get("studentName") || "").trim(),
-      className: String(formData.get("className") || "").trim(),
-      subjectName: String(formData.get("subjectName") || "").trim(),
-      termName: normalizeTerm(formData.get("termName")),
-      marks: Number(formData.get("marks")),
-    };
+    const studentName = String(formData.get("studentName") || "").trim();
+    const registerNumber = String(formData.get("registerNumber") || "").trim();
+    const className = String(formData.get("className") || "").trim();
+    const section = String(formData.get("sectionName") || "").trim();
+    const subjectName = String(formData.get("subjectName") || "").trim();
+    const classTeacherName = String(formData.get("classTeacherName") || "").trim();
+    const classTeacherSubject = String(formData.get("classTeacherSubject") || "").trim();
+    const termName = normalizeTerm(formData.get("termName"));
+    const marksValue = Number(formData.get("marks"));
+    const useAutoFill = Boolean(autoFillAll?.checked);
 
-    const records = loadRecords();
-    records.push(record);
-    saveRecords(records);
+    try {
+      if (editingRecordId) {
+        await apiRequest(`/records/${editingRecordId}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            studentName,
+            registerNumber,
+            className,
+            section,
+            classTeacherName,
+            classTeacherSubject,
+            subject: subjectName,
+            term: termName,
+            marks: marksValue,
+          }),
+        });
+      } else if (useAutoFill) {
+        const subjects = DEFAULT_SUBJECTS;
+        const terms = DEFAULT_TERMS;
+        const tasks = [];
+        subjects.forEach((subject) => {
+          terms.forEach((term) => {
+            tasks.push(
+              apiRequest("/records", {
+                method: "POST",
+                body: JSON.stringify({
+                  studentName,
+                  registerNumber,
+                  className,
+                  section,
+                  classTeacherName,
+                  classTeacherSubject,
+                  subject,
+                  term,
+                  marks: randomMarks(),
+                }),
+              })
+            );
+          });
+        });
+        await Promise.all(tasks);
+      } else {
+        await apiRequest("/records", {
+          method: "POST",
+          body: JSON.stringify({
+            studentName,
+            registerNumber,
+            className,
+            section,
+            classTeacherName,
+            classTeacherSubject,
+            subject: subjectName,
+            term: termName,
+            marks: marksValue,
+          }),
+        });
+      }
+    } catch {
+      return;
+    }
+
+    const classValue = className;
+    const subjectValue = subjectName;
+    const sectionValue = section;
+    const teacherValue = classTeacherName;
+    const teacherSubjectValue = classTeacherSubject;
+    const termValue = termName;
+    const submitBtn = recordForm.querySelector('button[type="submit"]');
+    const wasEditing = Boolean(editingRecordId);
+    editingRecordId = "";
+    if (submitBtn) submitBtn.textContent = "Add Record";
     recordForm.reset();
-    renderAll();
+    const classInput = recordForm.querySelector("#className");
+    const sectionInput = recordForm.querySelector("#sectionName");
+    const subjectInput = recordForm.querySelector("#subjectName");
+    const teacherInput = recordForm.querySelector("#classTeacherName");
+    const teacherSubjectInput = recordForm.querySelector("#classTeacherSubject");
+    const termInput = recordForm.querySelector("#termName");
+    if (autoFillAll) autoFillAll.checked = false;
+    if (!wasEditing) {
+      if (classInput) classInput.value = classValue;
+      if (sectionInput) sectionInput.value = sectionValue;
+      if (subjectInput) subjectInput.value = subjectValue;
+      if (teacherInput) teacherInput.value = teacherValue;
+      if (teacherSubjectInput) teacherSubjectInput.value = teacherSubjectValue;
+      if (termInput) termInput.value = termValue;
+    }
+    await refreshAndRender();
   });
 }
 
-[viewMode, classFilter, subjectFilter, specificClassFilter, specificSubjectFilter, studentFilter, chartClassFilter, chartSubjectFilter].forEach(
+[viewMode, classFilter, sectionFilter, studentFilter].forEach(
   (el) => {
-    if (el) el.addEventListener("change", renderAll);
+    if (el) el.addEventListener("change", () => renderAll(recordsCache));
   }
 );
 
 if (studentTermFilter) {
-  studentTermFilter.addEventListener("change", renderAll);
+  studentTermFilter.addEventListener("change", () => renderAll(recordsCache));
 }
 
 if (downloadStudentReportBtn) {
   downloadStudentReportBtn.addEventListener("click", () => {
-    const records = loadRecords();
-    const studentName = studentFilter.value;
+    const records = recordsCache;
+    const selectedRegister = studentFilter.value;
     const termName = studentTermFilter.value;
 
-    if (!studentName || !termName) return;
+    if (!selectedRegister || !termName) return;
 
-    const rows = getStudentTermRows(records, studentName, termName)
+    const rows = records
+      .filter((r) => r.registerNumber === selectedRegister && r.termName === termName)
       .slice()
       .sort((a, b) => a.subjectName.localeCompare(b.subjectName));
 
     if (!rows.length) return;
+    const studentName = rows[0].studentName;
     const schoolName = SCHOOL_NAME;
     const academicYear = String(academicYearInput?.value || "").trim() || "2026-2027";
-    const averageText = avg(rows).toFixed(2);
+    const totalMarks = rows.reduce((sum, r) => sum + Number(r.marks || 0), 0);
+    const percentage = avg(rows) || 0;
     const rowsHtml = rows
       .map((r) => `<tr><td>${escapeHtml(r.subjectName)}</td><td>${escapeHtml(r.marks)}</td><td>${escapeHtml(gradeFromMarks(r.marks))}</td></tr>`)
       .join("");
@@ -503,35 +609,47 @@ if (downloadStudentReportBtn) {
   <meta charset="UTF-8" />
   <title>${escapeHtml(studentName)} ${escapeHtml(termName)} Marksheet</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; color: #111; }
-    .head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
-    h1 { margin: 0; font-size: 22px; }
-    p { margin: 4px 0; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { border: 1px solid #999; padding: 8px; text-align: left; }
-    th { background: #f3f6fb; }
-    .avg { margin-top: 10px; font-weight: 700; }
+    body { font-family: "Times New Roman", serif; margin: 16px; background: #eef5f2; }
+    .sheet { max-width: 820px; margin: 0 auto; background: #fff; border: 3px double #2e5e52; padding: 16px; }
+    .board { margin: 0; text-align: center; font-size: 16px; letter-spacing: 0.4px; color: #1f3f36; }
+    .school { margin: 4px 0 2px; text-align: center; font-size: 22px; font-weight: 700; color: #16352e; }
+    .sub { margin: 0 0 12px; text-align: center; font-size: 13px; }
+    .meta { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+    .meta td { border: 1px solid #506f67; padding: 6px 8px; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #506f67; padding: 7px 8px; text-align: left; font-size: 13px; }
+    th { background: #e8f2ee; }
+    .spacer { height: 180px; }
+    .signature-row { display: flex; justify-content: space-between; margin-top: 10px; font-size: 13px; font-weight: 700; }
   </style>
 </head>
 <body>
-  <div class="head">
-    <div>
-      <h1>${escapeHtml(schoolName)}</h1>
-      <p>Academic Year: ${escapeHtml(academicYear)}</p>
-      <p>Term: ${escapeHtml(termName)}</p>
-      <p>Student: ${escapeHtml(studentName)}</p>
-      <p>Class: ${escapeHtml(rows[0].className)}</p>
+  <div class="sheet">
+    <p class="board">CENTRAL BOARD OF SECONDARY EDUCATION</p>
+    <p class="school">${escapeHtml(schoolName)}</p>
+    <p class="sub">Statement of Marks</p>
+    <table class="meta">
+      <tr><td><strong>Academic Year</strong>: ${escapeHtml(academicYear)}</td><td><strong>Term</strong>: ${escapeHtml(termName)}</td></tr>
+      <tr><td><strong>Student Name</strong>: ${escapeHtml(studentName)}</td><td><strong>Class</strong>: ${escapeHtml(rows[0].className)}</td></tr>
+      <tr><td><strong>Section</strong>: ${escapeHtml(rows[0].section)}</td><td><strong>Register No</strong>: ${escapeHtml(rows[0].registerNumber)}</td></tr>
+      <tr><td><strong>Class Teacher</strong>: ${escapeHtml(rows[0].classTeacherName)}</td><td><strong>Teacher Subject</strong>: ${escapeHtml(rows[0].classTeacherSubject)}</td></tr>
+    </table>
+    <table>
+      <thead>
+        <tr><th>Subject</th><th>Marks Obtained</th><th>Grade</th></tr>
+      </thead>
+      <tbody>
+        ${rowsHtml}
+        <tr><td><strong>Total</strong></td><td><strong>${escapeHtml(totalMarks)}</strong></td><td>-</td></tr>
+        <tr><td><strong>Percentage</strong></td><td><strong>${escapeHtml(percentage.toFixed(2))}%</strong></td><td>-</td></tr>
+      </tbody>
+    </table>
+    <div class="spacer"></div>
+    <div class="signature-row">
+      <p>Student Signature</p>
+      <p>Mentor Signature</p>
     </div>
   </div>
-  <table>
-    <thead>
-      <tr><th>Subject</th><th>Marks</th><th>Grade</th></tr>
-    </thead>
-    <tbody>
-      ${rowsHtml}
-    </tbody>
-  </table>
-  <p class="avg">Average: ${escapeHtml(averageText)}%</p>
 </body>
 </html>`;
 
@@ -541,7 +659,7 @@ if (downloadStudentReportBtn) {
     const safeStudent = studentName.replace(/[^a-z0-9]+/gi, "_");
     const safeTerm = termName.replace(/[^a-z0-9]+/gi, "_");
     link.href = url;
-    link.download = `${safeStudent}_${safeTerm}_marksheet.html`;
+    link.download = `${safeStudent}_${selectedRegister}_${safeTerm}_marksheet.html`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -550,24 +668,25 @@ if (downloadStudentReportBtn) {
 }
 
 if (academicYearInput) {
-  academicYearInput.addEventListener("input", renderAll);
+  academicYearInput.addEventListener("input", () => renderAll(recordsCache));
 }
 
 if (downloadStudentReportPdfBtn) {
   downloadStudentReportPdfBtn.addEventListener("click", () => {
-    const records = loadRecords();
-    const studentName = studentFilter.value;
+    const records = recordsCache;
+    const selectedRegister = studentFilter.value;
     const termName = studentTermFilter.value;
 
-    if (!studentName || !termName) return;
+    if (!selectedRegister || !termName) return;
 
-    const rows = getStudentTermRows(records, studentName, termName)
+    const rows = records
+      .filter((r) => r.registerNumber === selectedRegister && r.termName === termName)
       .slice()
       .sort((a, b) => a.subjectName.localeCompare(b.subjectName));
     if (!rows.length) return;
 
+    const studentName = rows[0].studentName;
     const academicYear = String(academicYearInput?.value || "").trim() || "2026-2027";
-    const averageText = avg(rows).toFixed(2);
     const rowsHtml = rows
       .map((r) => `<tr><td>${escapeHtml(r.subjectName)}</td><td>${escapeHtml(r.marks)}</td><td>${escapeHtml(gradeFromMarks(r.marks))}</td></tr>`)
       .join("");
@@ -578,35 +697,46 @@ if (downloadStudentReportPdfBtn) {
   <meta charset="UTF-8" />
   <title>${escapeHtml(studentName)} ${escapeHtml(termName)} Marksheet</title>
   <style>
-    body { font-family: "Times New Roman", serif; margin: 28px; color: #000; }
-    .sheet { border: 2px solid #000; padding: 14px; }
-    h1 { margin: 0; text-align: center; font-size: 24px; letter-spacing: 0.2px; }
+    body { font-family: "Times New Roman", serif; margin: 20px; color: #000; background: #eef5f2; }
+    .sheet { border: 3px double #1d3f36; padding: 14px; background: #fff; }
+    .board { margin: 0; text-align: center; font-size: 16px; letter-spacing: 0.4px; }
+    h1 { margin: 3px 0 0; text-align: center; font-size: 24px; letter-spacing: 0.2px; }
     .subhead { text-align: center; margin: 6px 0 14px; font-size: 14px; }
     .meta { width: 100%; margin-bottom: 12px; border-collapse: collapse; }
-    .meta td { border: 1px solid #000; padding: 6px 8px; font-size: 14px; }
+    .meta td { border: 1px solid #1d3f36; padding: 6px 8px; font-size: 14px; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { border: 1px solid #000; padding: 8px; font-size: 14px; text-align: left; }
-    th { background: #efefef; }
-    .avg { margin-top: 10px; font-weight: 700; font-size: 15px; }
+    th, td { border: 1px solid #1d3f36; padding: 8px; font-size: 14px; text-align: left; }
+    th { background: #e8f2ee; }
+    .spacer { height: 200px; }
+    .signature-row { display: flex; justify-content: space-between; margin-top: 12px; font-size: 14px; font-weight: 700; }
   </style>
 </head>
 <body>
   <div class="sheet">
+    <p class="board">CENTRAL BOARD OF SECONDARY EDUCATION</p>
     <h1>${escapeHtml(SCHOOL_NAME)}</h1>
     <div class="subhead">Statement of Marks</div>
     <table class="meta">
       <tr><td><strong>Academic Year</strong>: ${escapeHtml(academicYear)}</td><td><strong>Term</strong>: ${escapeHtml(termName)}</td></tr>
       <tr><td><strong>Student Name</strong>: ${escapeHtml(studentName)}</td><td><strong>Class</strong>: ${escapeHtml(rows[0].className)}</td></tr>
+      <tr><td><strong>Section</strong>: ${escapeHtml(rows[0].section)}</td><td><strong>Register No</strong>: ${escapeHtml(rows[0].registerNumber)}</td></tr>
+      <tr><td><strong>Class Teacher</strong>: ${escapeHtml(rows[0].classTeacherName)}</td><td><strong>Teacher Subject</strong>: ${escapeHtml(rows[0].classTeacherSubject)}</td></tr>
     </table>
     <table>
       <thead>
-        <tr><th>Subject</th><th>Marks</th><th>Grade</th></tr>
+        <tr><th>Subject</th><th>Marks Obtained</th><th>Grade</th></tr>
       </thead>
       <tbody>
         ${rowsHtml}
+        <tr><td><strong>Total</strong></td><td><strong>${escapeHtml(totalMarks)}</strong></td><td>-</td></tr>
+        <tr><td><strong>Percentage</strong></td><td><strong>${escapeHtml(percentage.toFixed(2))}%</strong></td><td>-</td></tr>
       </tbody>
     </table>
-    <p class="avg">Average: ${escapeHtml(averageText)}%</p>
+    <div class="spacer"></div>
+    <div class="signature-row">
+      <p>Student Signature</p>
+      <p>Mentor Signature</p>
+    </div>
   </div>
   <script>
     window.onload = function () {
@@ -627,6 +757,12 @@ if (downloadStudentReportPdfBtn) {
 document.addEventListener("click", (event) => {
   const target = event.target;
   if (!(target instanceof HTMLElement)) return;
+  const editBtn = target.closest(".record-edit");
+  if (editBtn) {
+    const recordId = editBtn.getAttribute("data-id");
+    if (recordId) startEditRecordById(recordId);
+    return;
+  }
   const btn = target.closest(".record-delete");
   if (!btn) return;
   const recordId = btn.getAttribute("data-id");
@@ -634,11 +770,17 @@ document.addEventListener("click", (event) => {
   deleteRecordById(recordId);
 });
 
-window.addEventListener("resize", renderAll);
+window.addEventListener("resize", () => renderAll(recordsCache));
 
 if (academicYearInput && !academicYearInput.value) {
   const year = new Date().getFullYear();
   academicYearInput.value = `${year}-${year + 1}`;
 }
 
-renderAll();
+async function refreshAndRender() {
+  await fetchCurrentUser();
+  recordsCache = await fetchRecords();
+  renderAll(recordsCache);
+}
+
+refreshAndRender();

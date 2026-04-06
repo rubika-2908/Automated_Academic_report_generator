@@ -1,0 +1,19 @@
+node_modules/
+**/node_modules/
+
+.env
+.env.*
+!.env.example
+
+*.log
+*.out
+*.err
+
+.DS_Store
+Thumbs.db
+
+.vscode/
+
+# build artifacts
+/dist/
+/build/

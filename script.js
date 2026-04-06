@@ -7,8 +7,8 @@ const email = document.getElementById("email");
 const fullName = document.getElementById("fullName");
 const registerForm = document.getElementById("registerForm");
 const loginForm = document.getElementById("loginForm");
-const USERS_KEY = "academic_users_v1";
 let toastTimer;
+const API_BASE_URL = "http://localhost:5000/api";
 
 function showToast(message) {
   clearTimeout(toastTimer);
@@ -38,24 +38,33 @@ function bindPasswordToggle(button, input, showLabel, hideLabel) {
   });
 }
 
-function loadUsers() {
-  try {
-    const data = JSON.parse(localStorage.getItem(USERS_KEY) || "[]");
-    return Array.isArray(data) ? data : [];
-  } catch {
-    return [];
-  }
-}
+async function postJson(url, payload) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 
-function saveUsers(users) {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    data = { success: false, message: "Unexpected server response." };
+  }
+
+  if (!response.ok || data?.success === false) {
+    const message = data?.message || "Request failed.";
+    throw new Error(message);
+  }
+
+  return data;
 }
 
 bindPasswordToggle(togglePassword, password, "Show password", "Hide password");
 bindPasswordToggle(toggleConfirmPassword, confirmPassword, "Show confirm password", "Hide confirm password");
 
 if (loginForm) {
-  loginForm.addEventListener("submit", (event) => {
+  loginForm.addEventListener("submit", async (event) => {
     if (!loginForm.checkValidity()) {
       event.preventDefault();
       loginForm.reportValidity();
@@ -65,23 +74,29 @@ if (loginForm) {
     event.preventDefault();
     const loginEmail = String(username?.value || "").trim().toLowerCase();
     const loginPassword = String(password?.value || "");
-    const users = loadUsers();
-    const matchedUser = users.find((user) => user.email === loginEmail && user.password === loginPassword);
 
-    if (!matchedUser) {
-      showToast("Invalid credentials");
-      return;
+    try {
+      const result = await postJson(`${API_BASE_URL}/auth/login`, {
+        email: loginEmail,
+        password: loginPassword,
+      });
+
+      if (result?.data?.token) {
+        localStorage.setItem("academic_auth_token", result.data.token);
+      }
+
+      showToast("Login successful");
+      setTimeout(() => {
+        window.location.href = "dashboard.html";
+      }, 700);
+    } catch (error) {
+      showToast(error?.message || "Invalid credentials");
     }
-
-    showToast("Login successful");
-    setTimeout(() => {
-      window.location.href = "dashboard.html";
-    }, 700);
   });
 }
 
 if (registerForm) {
-  registerForm.addEventListener("submit", (event) => {
+  registerForm.addEventListener("submit", async (event) => {
     if (!registerForm.checkValidity()) {
       event.preventDefault();
       registerForm.reportValidity();
@@ -97,21 +112,20 @@ if (registerForm) {
     }
 
     event.preventDefault();
-    const users = loadUsers();
     const newUser = {
-      fullName: String(fullName?.value || "").trim(),
+      name: String(fullName?.value || "").trim(),
       email: String(email?.value || "").trim().toLowerCase(),
       password: String(password?.value || ""),
     };
 
-    const existingIndex = users.findIndex((user) => user.email === newUser.email);
-    if (existingIndex >= 0) {
-      users[existingIndex] = newUser;
-    } else {
-      users.push(newUser);
+    try {
+      const result = await postJson(`${API_BASE_URL}/auth/register`, newUser);
+      if (result?.data?.token) {
+        localStorage.setItem("academic_auth_token", result.data.token);
+      }
+      showToast("Registration successful");
+    } catch (error) {
+      showToast(error?.message || "Registration failed");
     }
-
-    saveUsers(users);
-    showToast("Registration successful");
   });
 }
