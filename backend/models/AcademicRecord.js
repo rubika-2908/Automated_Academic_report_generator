@@ -24,13 +24,13 @@ const academicRecordSchema = new mongoose.Schema(
     },
     classTeacherName: {
       type: String,
-      required: true,
       trim: true,
+      default: "",
     },
     classTeacherSubject: {
       type: String,
-      required: true,
       trim: true,
+      default: "",
     },
     subject: {
       type: String,

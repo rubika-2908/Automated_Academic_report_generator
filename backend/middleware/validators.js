@@ -45,8 +45,6 @@ const validateRecordInput = (req, res, next) => {
     term,
     className,
     section,
-    classTeacherName,
-    classTeacherSubject,
   } = req.body;
 
   if (!isNonEmptyString(studentName)) {
@@ -66,12 +64,6 @@ const validateRecordInput = (req, res, next) => {
   }
   if (!isNonEmptyString(section)) {
     return sendValidationError(res, "section is required");
-  }
-  if (!isNonEmptyString(classTeacherName)) {
-    return sendValidationError(res, "classTeacherName is required");
-  }
-  if (!isNonEmptyString(classTeacherSubject)) {
-    return sendValidationError(res, "classTeacherSubject is required");
   }
 
   const numericMarks = Number(marks);
@@ -120,16 +112,12 @@ const validateStaffInput = (req, res, next) => {
 
 const validateStudentInput = (req, res, next) => {
   const {
-    registerNumber,
     studentName,
     className,
     section,
     admissionYear,
     parentPhone,
   } = req.body;
-  if (!isNonEmptyString(registerNumber)) {
-    return sendValidationError(res, "registerNumber is required");
-  }
   if (!isNonEmptyString(studentName)) {
     return sendValidationError(res, "studentName is required");
   }

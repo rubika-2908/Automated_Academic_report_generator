@@ -194,6 +194,27 @@
   .panel__body--compact canvas {
     height: 180px !important;
   }
+  .analytics-pie-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .analytics-pie-card {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    min-height: 320px;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  .analytics-pie-card canvas {
+    width: min(100%, 320px) !important;
+    height: min(100%, 320px) !important;
+    max-width: 320px;
+    max-height: 320px;
+    margin: 0 auto;
+  }
   .chart-compact canvas {
     height: 220px !important;
   }
@@ -204,5 +225,50 @@
   .class12-chart canvas {
     width: 100% !important;
     height: 100% !important;
+  }
+  .reports-page {
+    min-height: calc(100vh - 13.5rem);
+  }
+  .reports-card {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 13.5rem);
+  }
+  .reports-card__body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+  }
+  .reports-chart-wrap {
+    position: relative;
+    flex: 1;
+    min-height: clamp(260px, 42vh, 460px);
+    max-height: calc(100vh - 22rem);
+  }
+  .reports-chart-wrap canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .analytics-pie-card {
+    min-height: 280px;
+  }
+  .analytics-pie-card canvas {
+    width: min(100%, 260px) !important;
+    height: min(100%, 260px) !important;
+    max-width: 260px;
+    max-height: 260px;
+  }
+  .reports-page {
+    min-height: auto;
+  }
+  .reports-card {
+    min-height: auto;
+  }
+  .reports-chart-wrap {
+    min-height: 240px;
+    max-height: 320px;
   }
 }

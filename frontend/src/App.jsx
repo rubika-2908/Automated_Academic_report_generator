@@ -39,6 +39,18 @@ const CLASS_OPTIONS = [
   "Class 12C",
 ];
 
+function parseClassSelection(value) {
+  const input = String(value || "").trim();
+  const match = input.match(/^Class\s+(\d+)([A-C])$/i);
+  if (!match) {
+    return { className: input, section: "" };
+  }
+  return {
+    className: `Class ${match[1]}${match[2].toUpperCase()}`,
+    section: match[2].toUpperCase(),
+  };
+}
+
 function normalizeTerm(term) {
   const value = String(term || "").trim().toLowerCase();
   if (value === "term 1" || value === "term i") return "Term 1";
@@ -64,8 +76,6 @@ function buildRegisterDirectory(records) {
         name: String(record?.studentName || "").trim(),
         className: String(record?.className || "").trim(),
         section: String(record?.section || "").trim(),
-        classTeacherName: String(record?.classTeacherName || "").trim(),
-        classTeacherSubject: String(record?.classTeacherSubject || "").trim(),
       });
     }
   });
@@ -83,8 +93,6 @@ function mergeStudentRosterIntoDirectory(directory, students) {
       name: existing.name || String(student?.studentName || "").trim(),
       className: existing.className || String(student?.className || "").trim(),
       section: existing.section || String(student?.section || "").trim(),
-      classTeacherName: existing.classTeacherName || "",
-      classTeacherSubject: existing.classTeacherSubject || "",
     });
   });
   return nextDirectory;
@@ -376,8 +384,6 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
     registerNumber: "",
     className: "",
     section: "",
-    classTeacherName: "",
-    classTeacherSubject: "",
     subject: "",
     marks: "",
     term: "",
@@ -402,15 +408,12 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
   const [profileOpen, setProfileOpen] = useState(false);
 
   const [studentForm, setStudentForm] = useState({
-    registerNumber: "",
     studentName: "",
     parentName: "",
     dateOfBirth: "",
     place: "",
     parentPhone: "",
     className: "",
-    section: "",
-    admissionYear: "",
   });
   const [studentFormOpen, setStudentFormOpen] = useState(false);
 
@@ -516,17 +519,18 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
 
   const { registerOptionsByClass, registerDirectoryByClass } = useMemo(() => {
     const className = recordForm.className || (filters.className !== "all" ? filters.className : "");
-    const base = reportRecords;
+    const base = normalizedRecords;
     const filtered = className ? base.filter((r) => r.className === className) : base;
+    const rosterBase = students.length ? students : normalizedRecords;
     const roster = className
-      ? accessibleStudents.filter((student) => String(student?.className || "").trim() === className)
-      : accessibleStudents;
+      ? rosterBase.filter((student) => String(student?.className || "").trim() === className)
+      : rosterBase;
     const directory = mergeStudentRosterIntoDirectory(buildRegisterDirectory(filtered), roster);
     return {
       registerOptionsByClass: Array.from(directory.keys()).sort(),
       registerDirectoryByClass: directory,
     };
-  }, [reportRecords, accessibleStudents, recordForm.className, filters.className]);
+  }, [normalizedRecords, students, recordForm.className, filters.className]);
 
   const { registerOptionsForFilter, registerDirectoryForFilter } = useMemo(() => {
     const className = filters.className !== "all" ? filters.className : "";
@@ -935,6 +939,17 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
   }, [filters, isStaff, staffSubject, recordForm.subject, recordForm.className, recordForm.term, isEditingRecord]);
 
   const handleRecordChange = (key, value) => {
+    if (key === "className") {
+      const { section } = parseClassSelection(value);
+      setRecordForm((prev) => ({
+        ...prev,
+        className: value,
+        section: section || prev.section,
+        registerNumber: "",
+        studentName: "",
+      }));
+      return;
+    }
     setRecordForm((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -947,9 +962,7 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
       registerNumber,
       studentName: info?.name || prev.studentName,
       className: info?.className || prev.className,
-      section: info?.section || prev.section,
-      classTeacherName: prev.classTeacherName || info?.classTeacherName || "",
-      classTeacherSubject: prev.classTeacherSubject || info?.classTeacherSubject || "",
+      section: info?.section || parseClassSelection(info?.className || prev.className).section || prev.section,
     }));
   };
 
@@ -961,8 +974,6 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
       registerNumber: record.registerNumber || "",
       className: record.className || "",
       section: record.section || "",
-      classTeacherName: record.classTeacherName || "",
-      classTeacherSubject: record.classTeacherSubject || "",
       subject: record.subject || "",
       marks: String(record.marks ?? ""),
       term: normalizeTerm(record.term || ""),
@@ -977,8 +988,6 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
       registerNumber: "",
       className: filters.className !== "all" ? filters.className : "",
       section: "",
-      classTeacherName: "",
-      classTeacherSubject: "",
       subject: staffSubject || (filters.subject !== "all" ? filters.subject : ""),
       marks: "",
       term: filters.term || "",
@@ -992,8 +1001,6 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
       registerNumber: recordForm.registerNumber.trim(),
       className: recordForm.className.trim(),
       section: recordForm.section.trim(),
-      classTeacherName: recordForm.classTeacherName.trim(),
-      classTeacherSubject: recordForm.classTeacherSubject.trim(),
       subject: isStaff && staffSubject ? staffSubject : recordForm.subject.trim(),
       marks: Number(recordForm.marks),
       term: recordForm.term.trim(),
@@ -1003,12 +1010,10 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
       !payload.registerNumber ||
       !payload.className ||
       !payload.section ||
-      !payload.classTeacherName ||
-      !payload.classTeacherSubject ||
       !payload.subject ||
       !payload.term
     ) {
-      setNotice("Please fill register number, student name, class, section, teacher, subject, and term.");
+      setNotice("Please fill register number, student name, class, section, subject, and term.");
       setLastSaveStatus("Missing required fields.");
       return;
     }
@@ -1030,8 +1035,6 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
       registerNumber: "",
       className: recordForm.className,
       section: recordForm.section,
-      classTeacherName: recordForm.classTeacherName,
-      classTeacherSubject: recordForm.classTeacherSubject,
       subject: staffSubject || recordForm.subject,
       marks: "",
       term: recordForm.term,
@@ -1047,8 +1050,6 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
       registerNumber: recordForm.registerNumber.trim(),
       className: recordForm.className.trim(),
       section: recordForm.section.trim(),
-      classTeacherName: recordForm.classTeacherName.trim(),
-      classTeacherSubject: recordForm.classTeacherSubject.trim(),
       subject: isStaff && staffSubject ? staffSubject : recordForm.subject.trim(),
       marks: Number(recordForm.marks),
       term: recordForm.term.trim(),
@@ -1058,12 +1059,10 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
       !payload.registerNumber ||
       !payload.className ||
       !payload.section ||
-      !payload.classTeacherName ||
-      !payload.classTeacherSubject ||
       !payload.subject ||
       !payload.term
     ) {
-      setNotice("Please fill register number, student name, class, section, teacher, subject, and term.");
+      setNotice("Please fill register number, student name, class, section, subject, and term.");
       setLastSaveStatus("Missing required fields.");
       return;
     }
@@ -1086,8 +1085,6 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
       registerNumber: "",
       className: recordForm.className,
       section: recordForm.section,
-      classTeacherName: recordForm.classTeacherName,
-      classTeacherSubject: recordForm.classTeacherSubject,
       subject: staffSubject || recordForm.subject,
       marks: "",
       term: recordForm.term,
@@ -1130,28 +1127,22 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
   };
 
   const createStudent = async () => {
-    if (
-      !studentForm.registerNumber ||
-      !studentForm.studentName ||
-      !studentForm.className ||
-      !studentForm.section ||
-      !studentForm.admissionYear
-    ) {
-      setNotice("Fill register number, student name, class, section, and admission year.");
+    const parsedClass = parseClassSelection(studentForm.className);
+    if (!studentForm.studentName || !parsedClass.className || !parsedClass.section) {
+      setNotice("Fill student name and choose a class.");
       setStudentSaveStatus("Missing required fields.");
       return;
     }
 
     const payload = {
-      registerNumber: studentForm.registerNumber.trim(),
       studentName: studentForm.studentName.trim(),
       parentName: studentForm.parentName.trim(),
       dateOfBirth: studentForm.dateOfBirth || undefined,
       place: studentForm.place.trim(),
       parentPhone: studentForm.parentPhone.trim(),
-      className: studentForm.className.trim(),
-      section: studentForm.section.trim(),
-      admissionYear: Number(studentForm.admissionYear),
+      className: parsedClass.className,
+      section: parsedClass.section,
+      admissionYear: new Date().getFullYear(),
     };
 
     const response = await apiRequest("/students", "POST", payload, token);
@@ -1160,18 +1151,16 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
       setStudentSaveStatus(response.data.message || "Failed to create student");
       return;
     }
-    setNotice("Student created");
-    setStudentSaveStatus("Student created successfully.");
+    const assignedRegisterNumber = response.data?.data?.registerNumber || "Assigned automatically";
+    setNotice(`Student created with register number ${assignedRegisterNumber}`);
+    setStudentSaveStatus(`Student created. Register number: ${assignedRegisterNumber}`);
     setStudentForm({
-      registerNumber: "",
       studentName: "",
       parentName: "",
       dateOfBirth: "",
       place: "",
       parentPhone: "",
       className: "",
-      section: "",
-      admissionYear: "",
     });
     await loadStudents();
   };
@@ -1189,8 +1178,6 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
     const studentName = rows[0]?.studentName || "Student";
     const registerNumber = rows[0]?.registerNumber || selectedStudent;
     const section = rows[0]?.section || "-";
-    const classTeacherName = rows[0]?.classTeacherName || "-";
-    const classTeacherSubject = rows[0]?.classTeacherSubject || "-";
     const totalMarks = rows.reduce((sum, r) => sum + Number(r.marks || 0), 0);
     const percentage = average(rows) || 0;
     const overallResult = rows.every((r) => Number(r.marks || 0) >= 50) ? "PASS" : "FAIL";
@@ -1231,7 +1218,6 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
       <tr><td><strong>Term</strong>: ${selectedStudentTerm}</td><td><strong>Student Name</strong>: ${studentName}</td></tr>
       <tr><td><strong>Register No</strong>: ${registerNumber}</td><td><strong>Section</strong>: ${section}</td></tr>
       <tr><td><strong>Class</strong>: ${rows[0]?.className || "-"}</td><td><strong>Subject Count</strong>: ${rows.length}</td></tr>
-      <tr><td><strong>Class Teacher</strong>: ${classTeacherName}</td><td></td></tr>
     </table>
     <table>
       <thead>
@@ -1324,7 +1310,29 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
         },
       ],
     },
-    options: { responsive: true, plugins: { legend: { position: "bottom" } } },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: {
+        padding: {
+          top: 12,
+          right: 12,
+          bottom: 12,
+          left: 12,
+        },
+      },
+      plugins: {
+        legend: {
+          position: "bottom",
+          align: "center",
+          labels: {
+            boxWidth: 12,
+            boxHeight: 12,
+            padding: 16,
+          },
+        },
+      },
+    },
   }, setChartError);
 
   useChart(chartReportClassRef, {
@@ -1337,10 +1345,16 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
           data: classReportData.values,
           backgroundColor: "rgba(59, 125, 255, 0.6)",
           borderRadius: 8,
+          maxBarThickness: 34,
         },
       ],
     },
-    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 100 } } },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { min: 0, max: 100 } },
+    },
   }, setChartError);
 
   useChart(chartReportStudentRef, {
@@ -1353,10 +1367,16 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
           data: reportStudentSubjectMarks.values,
           backgroundColor: "rgba(34, 197, 94, 0.6)",
           borderRadius: 8,
+          maxBarThickness: 42,
         },
       ],
     },
-    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 100 } } },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { min: 0, max: 100 } },
+    },
   }, setChartError);
 
   useChart(chartClass12SubjectRef, {
@@ -1543,14 +1563,6 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                           <input
                             className="input"
-                            placeholder="Register Number"
-                            value={studentForm.registerNumber}
-                            onChange={(e) =>
-                              setStudentForm((prev) => ({ ...prev, registerNumber: e.target.value }))
-                            }
-                          />
-                          <input
-                            className="input"
                             placeholder="Student Name"
                             value={studentForm.studentName}
                             onChange={(e) =>
@@ -1599,24 +1611,6 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
                               </option>
                             ))}
                           </select>
-                          <select
-                            className="input"
-                            value={studentForm.section}
-                            onChange={(e) => setStudentForm((prev) => ({ ...prev, section: e.target.value }))}
-                          >
-                            <option value="">Select Section</option>
-                            <option value="A">A</option>
-                            <option value="B">B</option>
-                            <option value="C">C</option>
-                          </select>
-                          <input
-                            className="input"
-                            placeholder="Admission Year"
-                            value={studentForm.admissionYear}
-                            onChange={(e) =>
-                              setStudentForm((prev) => ({ ...prev, admissionYear: e.target.value }))
-                            }
-                          />
                         </div>
                         <button className="btn-primary" onClick={createStudent}>
                           Save Student
@@ -1844,18 +1838,9 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
                     </select>
                     <select
                       className="input"
-                      value={recordForm.section}
-                      onChange={(e) => handleRecordChange("section", e.target.value)}
-                    >
-                      <option value="">Select Section</option>
-                      <option value="A">A</option>
-                      <option value="B">B</option>
-                      <option value="C">C</option>
-                    </select>
-                    <select
-                      className="input"
                       value={recordForm.registerNumber}
                       onChange={(e) => handleRegisterSelect(e.target.value)}
+                      disabled={!recordForm.className}
                     >
                       <option value="">Select Register Number</option>
                       {registerOptionsByClass.map((registerNumber) => (
@@ -1868,13 +1853,7 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
                       className="input"
                       placeholder="Student Name"
                       value={recordForm.studentName}
-                      onChange={(e) => handleRecordChange("studentName", e.target.value)}
-                    />
-                    <input
-                      className="input"
-                      placeholder="Register Number"
-                      value={recordForm.registerNumber}
-                      onChange={(e) => handleRecordChange("registerNumber", e.target.value)}
+                      readOnly
                     />
                     <select
                       className="input"
@@ -1889,33 +1868,6 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
                         </option>
                       ))}
                     </select>
-                    <input
-                      className="input"
-                      placeholder="Class Teacher Name"
-                      value={recordForm.classTeacherName}
-                      onChange={(e) => handleRecordChange("classTeacherName", e.target.value)}
-                    />
-                    <select
-                      className="input"
-                      value={recordForm.classTeacherSubject}
-                      onChange={(e) => handleRecordChange("classTeacherSubject", e.target.value)}
-                    >
-                      <option value="">Teacher Subject</option>
-                      {SUBJECT_OPTIONS.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      className="input"
-                      placeholder="Marks"
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={recordForm.marks}
-                      onChange={(e) => handleRecordChange("marks", e.target.value)}
-                    />
                     <select
                       className="input"
                       value={recordForm.term}
@@ -1926,6 +1878,21 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
                       <option>Term 2</option>
                       <option>Term 3</option>
                     </select>
+                    <input
+                      className="input"
+                      placeholder="Marks"
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={recordForm.marks}
+                      onChange={(e) => handleRecordChange("marks", e.target.value)}
+                    />
+                    <input
+                      className="input"
+                      placeholder="Section"
+                      value={recordForm.section}
+                      readOnly
+                    />
                   </div>
 
                   <div className="overflow-x-auto">
@@ -1974,15 +1941,15 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
 
           {activePage === "reports" ? (
             isBiologyStaff ? (
-              <div className="grid grid-cols-1 gap-4">
-                <div className="card">
+              <div className="grid grid-cols-1 gap-4 reports-page">
+                <div className="card reports-card">
                   <div className="card-header">
                     <div>
                       <h2 className="text-lg font-semibold text-brand-900">Biology Class Averages</h2>
                       <p className="text-sm text-brand-600">Class-wise Biology average only.</p>
                     </div>
                   </div>
-                  <div className="card-body space-y-4">
+                  <div className="card-body space-y-4 reports-card__body">
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                       {biologyClassAverages.labels.map((label, idx) => {
                         const count = biologyClassAverages.counts?.[idx] || 0;
@@ -2003,15 +1970,15 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
                     {!biologyClassAverages.counts?.some((count) => count > 0) ? (
                       <p className="text-sm text-brand-600">No Biology records available yet.</p>
                     ) : null}
-                    <div>
-                      <canvas ref={chartReportClassRef} height="220" />
+                    <div className="reports-chart-wrap">
+                      <canvas ref={chartReportClassRef} />
                     </div>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-4">
-                <div className="card">
+              <div className="grid grid-cols-1 gap-4 reports-page">
+                <div className="card reports-card">
                   <div className="card-header">
                     <div>
                       <h2 className="text-lg font-semibold text-brand-900">Student Report</h2>
@@ -2020,7 +1987,7 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
                       </p>
                     </div>
                   </div>
-                  <div className="card-body space-y-4">
+                  <div className="card-body space-y-4 reports-card__body">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <select
                         className="input"
@@ -2068,7 +2035,9 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
                         ))}
                       </select>
                     </div>
-                    <canvas ref={chartReportStudentRef} height="220" />
+                    <div className="reports-chart-wrap">
+                      <canvas ref={chartReportStudentRef} />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2192,7 +2161,8 @@ function Dashboard({ token, user, onLogout, setNotice, notice }) {
                     title="Pass / Fail Distribution"
                     canvasRef={chartAnalyticsPassFailRef}
                     chartKey={`pf-${passFail.values.join("-")}`}
-                    bodyClassName="panel__body--compact"
+                    panelClassName="analytics-pie-panel"
+                    bodyClassName="analytics-pie-card"
                   />
                   <div className="panel">
                     <div className="panel__header">
@@ -2609,14 +2579,14 @@ function ReportIcon() {
   );
 }
 
-function ChartCard({ title, canvasRef, chartKey, bodyClassName }) {
+function ChartCard({ title, canvasRef, chartKey, bodyClassName, canvasClassName, panelClassName }) {
   return (
-    <div className="panel" key={chartKey || title}>
+    <div className={`panel ${panelClassName || ""}`.trim()} key={chartKey || title}>
       <div className="panel__header">
         <h2>{title}</h2>
       </div>
       <div className={`panel__body ${bodyClassName || ""}`.trim()}>
-        <canvas ref={canvasRef} height="220" />
+        <canvas ref={canvasRef} className={canvasClassName || ""} height="220" />
       </div>
     </div>
   );

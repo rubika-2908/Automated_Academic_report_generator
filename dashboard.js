@@ -108,8 +108,6 @@ async function fetchRecords() {
         registerNumber: String(r.registerNumber || "").trim(),
         className: String(r.className || "").trim(),
         section: String(r.section || "").trim(),
-        classTeacherName: String(r.classTeacherName || "").trim(),
-        classTeacherSubject: String(r.classTeacherSubject || "").trim(),
         subjectName: String(r.subject || r.subjectName || "").trim(),
         termName: normalizeTerm(r.term || r.termName),
         marks: Number(r.marks),
@@ -122,8 +120,6 @@ async function fetchRecords() {
           r.className &&
           r.section &&
           r.subjectName &&
-          r.classTeacherName &&
-          r.classTeacherSubject &&
           Number.isFinite(r.marks)
       );
   } catch {
@@ -357,14 +353,13 @@ function renderClassRecords(records) {
     .map((key) => {
       const rows = groups[key];
       const rowsHtml = createTable(
-        ["Reg No", "Student", "Subject", "Term", "Marks", "Class Teacher", "Action"],
+        ["Reg No", "Student", "Subject", "Term", "Marks", "Action"],
         rows.map((r) => [
           r.registerNumber,
           r.studentName,
           r.subjectName,
           r.termName,
           r.marks,
-          `${r.classTeacherName} (${r.classTeacherSubject})`,
           createActionMenu(r.id),
         ])
       );
@@ -442,8 +437,6 @@ function renderStudentReport(records) {
         <p><strong>Class:</strong> ${termRecords[0].className}</p>
         <p><strong>Section:</strong> ${termRecords[0].section}</p>
         <p><strong>Register No:</strong> ${termRecords[0].registerNumber}</p>
-        <p><strong>Class Teacher:</strong> ${termRecords[0].classTeacherName}</p>
-        <p><strong>Teacher Subject:</strong> ${termRecords[0].classTeacherSubject}</p>
       </div>
       ${tableHtml}
       <div class="marksheet__spacer"></div>
@@ -529,8 +522,6 @@ function startEditRecordById(recordId) {
   const classInput = recordForm.querySelector("#className");
   const sectionInput = recordForm.querySelector("#sectionName");
   const subjectInput = recordForm.querySelector("#subjectName");
-  const teacherInput = recordForm.querySelector("#classTeacherName");
-  const teacherSubjectInput = recordForm.querySelector("#classTeacherSubject");
   const termInput = recordForm.querySelector("#termName");
   const marksInput = recordForm.querySelector("#marks");
   const submitBtn = recordForm.querySelector('button[type="submit"]');
@@ -540,8 +531,6 @@ function startEditRecordById(recordId) {
   if (classInput) classInput.value = record.className;
   if (sectionInput) sectionInput.value = record.section;
   if (subjectInput) subjectInput.value = record.subjectName;
-  if (teacherInput) teacherInput.value = record.classTeacherName;
-  if (teacherSubjectInput) teacherSubjectInput.value = record.classTeacherSubject;
   if (termInput) termInput.value = record.termName;
   if (marksInput) marksInput.value = String(record.marks);
   if (studentRoster) studentRoster.value = record.registerNumber;
@@ -571,8 +560,6 @@ if (recordForm) {
     const className = String(formData.get("className") || "").trim();
     const section = String(formData.get("sectionName") || "").trim();
     const subjectName = String(formData.get("subjectName") || "").trim();
-    const classTeacherName = String(formData.get("classTeacherName") || "").trim();
-    const classTeacherSubject = String(formData.get("classTeacherSubject") || "").trim();
     const termName = normalizeTerm(formData.get("termName"));
     const marksValue = Number(formData.get("marks"));
     const useAutoFill = Boolean(autoFillAll?.checked);
@@ -586,8 +573,6 @@ if (recordForm) {
             registerNumber,
             className,
             section,
-            classTeacherName,
-            classTeacherSubject,
             subject: subjectName,
             term: termName,
             marks: marksValue,
@@ -607,8 +592,6 @@ if (recordForm) {
                   registerNumber,
                   className,
                   section,
-                  classTeacherName,
-                  classTeacherSubject,
                   subject,
                   term,
                   marks: randomMarks(),
@@ -626,8 +609,6 @@ if (recordForm) {
             registerNumber,
             className,
             section,
-            classTeacherName,
-            classTeacherSubject,
             subject: subjectName,
             term: termName,
             marks: marksValue,
@@ -641,8 +622,6 @@ if (recordForm) {
     const classValue = className;
     const subjectValue = subjectName;
     const sectionValue = section;
-    const teacherValue = classTeacherName;
-    const teacherSubjectValue = classTeacherSubject;
     const termValue = termName;
     const submitBtn = recordForm.querySelector('button[type="submit"]');
     const wasEditing = Boolean(editingRecordId);
@@ -652,8 +631,6 @@ if (recordForm) {
     const classInput = recordForm.querySelector("#className");
     const sectionInput = recordForm.querySelector("#sectionName");
     const subjectInput = recordForm.querySelector("#subjectName");
-    const teacherInput = recordForm.querySelector("#classTeacherName");
-    const teacherSubjectInput = recordForm.querySelector("#classTeacherSubject");
     const termInput = recordForm.querySelector("#termName");
     if (autoFillAll) autoFillAll.checked = false;
     if (studentRoster) studentRoster.value = "";
@@ -661,8 +638,6 @@ if (recordForm) {
       if (classInput) classInput.value = classValue;
       if (sectionInput) sectionInput.value = sectionValue;
       if (subjectInput) subjectInput.value = subjectValue;
-      if (teacherInput) teacherInput.value = teacherValue;
-      if (teacherSubjectInput) teacherSubjectInput.value = teacherSubjectValue;
       if (termInput) termInput.value = termValue;
     }
     await refreshAndRender();
@@ -736,7 +711,6 @@ if (downloadStudentReportBtn) {
       <tr><td><strong>Academic Year</strong>: ${escapeHtml(academicYear)}</td><td><strong>Term</strong>: ${escapeHtml(termName)}</td></tr>
       <tr><td><strong>Student Name</strong>: ${escapeHtml(studentName)}</td><td><strong>Class</strong>: ${escapeHtml(rows[0].className)}</td></tr>
       <tr><td><strong>Section</strong>: ${escapeHtml(rows[0].section)}</td><td><strong>Register No</strong>: ${escapeHtml(rows[0].registerNumber)}</td></tr>
-      <tr><td><strong>Class Teacher</strong>: ${escapeHtml(rows[0].classTeacherName)}</td><td><strong>Teacher Subject</strong>: ${escapeHtml(rows[0].classTeacherSubject)}</td></tr>
     </table>
     <table>
       <thead>
@@ -824,7 +798,6 @@ if (downloadStudentReportPdfBtn) {
       <tr><td><strong>Academic Year</strong>: ${escapeHtml(academicYear)}</td><td><strong>Term</strong>: ${escapeHtml(termName)}</td></tr>
       <tr><td><strong>Student Name</strong>: ${escapeHtml(studentName)}</td><td><strong>Class</strong>: ${escapeHtml(rows[0].className)}</td></tr>
       <tr><td><strong>Section</strong>: ${escapeHtml(rows[0].section)}</td><td><strong>Register No</strong>: ${escapeHtml(rows[0].registerNumber)}</td></tr>
-      <tr><td><strong>Class Teacher</strong>: ${escapeHtml(rows[0].classTeacherName)}</td><td><strong>Teacher Subject</strong>: ${escapeHtml(rows[0].classTeacherSubject)}</td></tr>
     </table>
     <table>
       <thead>
